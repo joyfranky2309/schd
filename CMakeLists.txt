@@ -8,7 +8,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)  # lets VS Code / clangd see real flags
 
 option(SCHD_SANITIZE "Build with ASan + UBSan" OFF)
 
-add_executable(schd src/main.cpp)
+add_executable(schd src/main.cpp src/job_status.cpp)
 
 target_compile_options(schd PRIVATE -Wall -Wextra -Wpedantic)
 
