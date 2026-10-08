@@ -1,32 +1,54 @@
 #include <iostream>
-#include "job_status.hpp"
+#include <stdexcept>
+#include "failing_stub_job.hpp"
 #include "job_run.hpp"
+#include "job_status.hpp"
 #include "StubJob.hpp"
-void check(Job_Status from, Job_Status to) {
-    std::cout << to_string(from) << " -> " << to_string(to)
-              << " : " << (can_transition(from, to) ? "legal" : "illegal")
-              << '\n';
+
+namespace {
+JobRun execute_job(Job& job) {
+    JobRun run(job.id());
+    run.transition_to(Job_Status::QUEUED);
+    run.transition_to(Job_Status::RUNNING);
+    run.transition_to(job.execute());
+    return run;
+}
+
+bool report_test(const char* name, bool passed) {
+    std::cout << (passed ? "PASS: " : "FAIL: ") << name << '\n';
+    return passed;
+}
 }
 
 int main() {
-    // a few that should be legal
-    check(Job_Status::PENDING, Job_Status::QUEUED);
-    check(Job_Status::QUEUED, Job_Status::RUNNING);
-    check(Job_Status::RUNNING, Job_Status::SUCCESS);
-    check(Job_Status::QUEUED, Job_Status::SKIPPED);
+    bool all_passed = true;
 
-    // a few that should be illegal
-    check(Job_Status::RUNNING, Job_Status::QUEUED);
-    check(Job_Status::SUCCESS, Job_Status::RUNNING); // terminal state
-    check(Job_Status::PENDING, Job_Status::RUNNING);  // must pass through QUEUED
-    StubJob stub("job-1", 3);
-JobRun run(stub.id());
+    StubJob successful_job("job-1", 3);
+    const JobRun successful_run = execute_job(successful_job);
+    all_passed &= report_test(
+        "successful job ends in SUCCESS with timestamps",
+        successful_run.status() == Job_Status::SUCCESS &&
+        successful_run.start_time().has_value() &&
+        successful_run.end_time().has_value());
 
-run.transition_to(Job_Status::QUEUED);
-run.transition_to(Job_Status::RUNNING);
+    FailingStubJob failing_job("job-2", 3);
+    const JobRun failing_run = execute_job(failing_job);
+    all_passed &= report_test(
+        "failing job ends in FAILED with timestamps",
+        failing_run.status() == Job_Status::FAILED &&
+        failing_run.start_time().has_value() &&
+        failing_run.end_time().has_value());
 
-Job_Status result = stub.execute();
-run.transition_to(result);
+    JobRun invalid_run("job-invalid");
+    bool rejected_invalid_transition = false;
+    try {
+        invalid_run.transition_to(Job_Status::RUNNING);
+    } catch (const std::runtime_error&) {
+        rejected_invalid_transition = true;
+    }
+    all_passed &= report_test(
+        "illegal PENDING-to-RUNNING transition is rejected",
+        rejected_invalid_transition && invalid_run.status() == Job_Status::PENDING);
 
-std::cout << "Final status: " << to_string(run.status()) << '\n';
+    return all_passed ? 0 : 1;
 }
