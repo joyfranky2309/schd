@@ -1,7 +1,7 @@
 #include <iostream>
 #include "job_status.hpp"
 #include "job_run.hpp"
-#include "StubJob.cpp"
+#include "StubJob.hpp"
 void check(Job_Status from, Job_Status to) {
     std::cout << to_string(from) << " -> " << to_string(to)
               << " : " << (can_transition(from, to) ? "legal" : "illegal")
