@@ -1,5 +1,6 @@
 #include <iostream>
 #include <stdexcept>
+#include "threadpool.hpp"
 #include "failing_stub_job.hpp"
 #include "job_run.hpp"
 #include "job_status.hpp"
@@ -49,6 +50,17 @@ int main() {
     all_passed &= report_test(
         "illegal PENDING-to-RUNNING transition is rejected",
         rejected_invalid_transition && invalid_run.status() == Job_Status::PENDING);
+
+    {
+        StubJob job1("pool-job-1", 3);
+        FailingStubJob job2("pool-job-2", 3);
+        StubJob job3("pool-job-3", 3);
+        ThreadPool pool(2);
+
+        pool.push_job(&job1);
+        pool.push_job(&job2);
+        pool.push_job(&job3);
+    } // The pool drains and joins before the jobs are destroyed.
 
     return all_passed ? 0 : 1;
 }
