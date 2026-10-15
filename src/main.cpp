@@ -52,13 +52,14 @@ int main() {
         rejected_invalid_transition && invalid_run.status() == Job_Status::PENDING);
 
     {
-        ThreadPool pool(1); // Single worker makes the execution order easy to observe.
-
         StubJob jobA("job-A", 3);
         StubJob jobB("job-B", 3);
         StubJob jobC("job-C", 3);
         StubJob jobD("job-D", 3);
         StubJob jobE("job-E", 3);
+        
+        ThreadPool pool(1); // Single worker makes the execution order easy to observe.
+
 
         pool.push_job(&jobA, 1, 5);
         pool.push_job(&jobB, 2, 1);
