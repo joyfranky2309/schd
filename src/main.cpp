@@ -52,14 +52,19 @@ int main() {
         rejected_invalid_transition && invalid_run.status() == Job_Status::PENDING);
 
     {
-        StubJob job1("pool-job-1", 3);
-        FailingStubJob job2("pool-job-2", 3);
-        StubJob job3("pool-job-3", 3);
-        ThreadPool pool(2);
+        ThreadPool pool(1); // Single worker makes the execution order easy to observe.
 
-        pool.push_job(&job1);
-        pool.push_job(&job2);
-        pool.push_job(&job3);
+        StubJob jobA("job-A", 3);
+        StubJob jobB("job-B", 3);
+        StubJob jobC("job-C", 3);
+        StubJob jobD("job-D", 3);
+        StubJob jobE("job-E", 3);
+
+        pool.push_job(&jobA, 1, 5);
+        pool.push_job(&jobB, 2, 1);
+        pool.push_job(&jobC, 2, 5);
+        pool.push_job(&jobD, 1, 3);
+        pool.push_job(&jobE, 2, 1);
     } // The pool drains and joins before the jobs are destroyed.
 
     return all_passed ? 0 : 1;
