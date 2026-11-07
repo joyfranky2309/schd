@@ -84,9 +84,12 @@ public:
         }
         started_ = true;
 
+        std::vector<ReadyJob> initially_ready;
         for (const auto& id : dag_.initial_ready()) {
             const auto& entry = registry_.at(id);
-            pool_.push_job(entry.job, entry.category, entry.user_priority);
+            initially_ready.push_back(
+                ReadyJob{entry.job, entry.category, entry.user_priority});
         }
+        pool_.push_jobs(initially_ready);
     }
 };

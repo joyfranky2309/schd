@@ -188,11 +188,22 @@ public:
 
     void push_job(Job *job,int category,int user_priority)
     {
+        push_jobs({ReadyJob{job, category, user_priority}});
+    }
+
+    void push_jobs(const std::vector<ReadyJob>& jobs)
+    {
+        std::size_t pushed_jobs = 0;
         {
             std::lock_guard<std::mutex> lock(queue_mutex_);
-            push_job_locked(job,category,user_priority);
+            for (const auto& job : jobs) {
+                push_job_locked(job.job, job.category, job.user_priority);
+                ++pushed_jobs;
+            }
         }
-        cv.notify_one();
+        for (std::size_t i = 0; i < pushed_jobs; ++i) {
+            cv.notify_one();
+        }
     }
 
     ~ThreadPool()

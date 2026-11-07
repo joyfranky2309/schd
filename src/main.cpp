@@ -83,9 +83,6 @@ int main() {
     cyclic_dag.add_edge("job-A", "job-B");
     cyclic_dag.add_edge("job-B", "job-A");
     const bool cyclic_dag_rejected = cyclic_dag.has_cycle();
-    if (cyclic_dag_rejected) {
-        std::cerr << "ERROR: refusing to start a cyclic DAG\n";
-    }
     all_passed &= report_test(
         "cyclic DAG is rejected before scheduling",
         cyclic_dag_rejected);
@@ -206,14 +203,17 @@ int main() {
         };
         ThrowingJob throwing_job("throwing-job");
         StubJob dependent_job("dependent-job", 1, record_execution);
+        StubJob downstream_job("downstream-job", 1, record_execution);
         StubJob independent_job("independent-job", 1, record_execution);
 
         {
             Scheduler scheduler(2);
             scheduler.add_job(&throwing_job, 1, 1);
             scheduler.add_job(&dependent_job, 1, 1);
+            scheduler.add_job(&downstream_job, 1, 1);
             scheduler.add_job(&independent_job, 1, 1);
             scheduler.add_dependency("throwing-job", "dependent-job");
+            scheduler.add_dependency("dependent-job", "downstream-job");
             scheduler.start();
         }
 
@@ -224,14 +224,18 @@ int main() {
 
     {
         StubJob job("callback-exception-job", 1);
-        ThreadPool pool(1, [](const std::string&, Job_Status) -> FinishedJobs {
-            throw std::runtime_error("expected callback exception");
-        });
-        pool.push_job(&job, 1, 1);
+        bool callback_invoked = false;
+        {
+            ThreadPool pool(1, [&](const std::string&, Job_Status) -> FinishedJobs {
+                callback_invoked = true;
+                throw std::runtime_error("expected callback exception");
+            });
+            pool.push_job(&job, 1, 1);
+        }
+        all_passed &= report_test(
+            "callback exceptions do not terminate worker threads",
+            callback_invoked);
     }
-    all_passed &= report_test(
-        "callback exceptions do not terminate worker threads",
-        true);
 
     {
         StubJob cyclic_job_a("cyclic-A", 3);
