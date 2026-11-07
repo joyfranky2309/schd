@@ -1,15 +1,18 @@
 #include <algorithm>
+#include <chrono>
 #include <iostream>
 #include <mutex>
+#include <random>
 #include <stdexcept>
 #include <string>
+#include <thread>
 #include <vector>
 #include "dag.hpp"
 #include "failing_stub_job.hpp"
 #include "job_run.hpp"
 #include "job_status.hpp"
 #include "scheduler.hpp"
-#include "StubJob.hpp"
+#include "stub_job.hpp"
 
 namespace {
 JobRun execute_job(Job& job) {
@@ -24,6 +27,15 @@ bool report_test(const char* name, bool passed) {
     std::cout << (passed ? "PASS: " : "FAIL: ") << name << '\n';
     return passed;
 }
+
+class ThrowingJob : public Job {
+public:
+    explicit ThrowingJob(std::string id) : Job(std::move(id), 1) {}
+
+    Job_Status execute() override {
+        throw std::runtime_error("expected test exception");
+    }
+};
 }
 
 int main() {
@@ -83,6 +95,10 @@ int main() {
         std::mutex execution_order_mutex;
         std::vector<std::string> execution_order;
         auto record_execution = [&](const std::string& id) {
+            thread_local std::mt19937 random_engine(std::random_device{}());
+            std::uniform_int_distribution<int> delay(0, 500);
+            std::this_thread::sleep_for(
+                std::chrono::microseconds(delay(random_engine)));
             std::lock_guard<std::mutex> lock(execution_order_mutex);
             execution_order.push_back(id);
         };
@@ -128,6 +144,94 @@ int main() {
     all_passed &= report_test(
         "job dependencies are respected across 30 concurrent runs",
         dependency_order_passed);
+
+    {
+        std::mutex order_mutex;
+        std::vector<std::string> priority_order;
+        auto record_priority_order = [&](const std::string& id) {
+            std::lock_guard<std::mutex> lock(order_mutex);
+            priority_order.push_back(id);
+        };
+        StubJob jobA("job-A", 3, record_priority_order);
+        StubJob jobB("job-B", 3, record_priority_order);
+        StubJob jobC("job-C", 3, record_priority_order);
+        StubJob jobD("job-D", 3, record_priority_order);
+        StubJob jobE("job-E", 3, record_priority_order);
+
+        const std::vector<std::string> expected_order{
+            "job-C", "job-B", "job-E", "job-A", "job-D"};
+        {
+            Scheduler scheduler(1);
+            scheduler.add_job(&jobA, 1, 5);
+            scheduler.add_job(&jobB, 2, 4);
+            scheduler.add_job(&jobC, 2, 5);
+            scheduler.add_job(&jobD, 1, 3);
+            scheduler.add_job(&jobE, 2, 3);
+            scheduler.start();
+
+            bool rejected_second_start = false;
+            try {
+                scheduler.start();
+            } catch (const std::logic_error&) {
+                rejected_second_start = true;
+            }
+            bool rejected_late_job = false;
+            try {
+                scheduler.add_job(&jobA, 1, 1);
+            } catch (const std::logic_error&) {
+                rejected_late_job = true;
+            }
+            bool rejected_late_dependency = false;
+            try {
+                scheduler.add_dependency("job-A", "job-B");
+            } catch (const std::logic_error&) {
+                rejected_late_dependency = true;
+            }
+            all_passed &= report_test(
+                "scheduler rejects repeated starts and late configuration",
+                rejected_second_start && rejected_late_job &&
+                rejected_late_dependency);
+        }
+        all_passed &= report_test(
+            "scheduler preserves priority ordering",
+            priority_order == expected_order);
+    }
+
+    {
+        std::vector<std::string> executed_jobs;
+        std::mutex executed_jobs_mutex;
+        auto record_execution = [&](const std::string& id) {
+            std::lock_guard<std::mutex> lock(executed_jobs_mutex);
+            executed_jobs.push_back(id);
+        };
+        ThrowingJob throwing_job("throwing-job");
+        StubJob dependent_job("dependent-job", 1, record_execution);
+        StubJob independent_job("independent-job", 1, record_execution);
+
+        {
+            Scheduler scheduler(2);
+            scheduler.add_job(&throwing_job, 1, 1);
+            scheduler.add_job(&dependent_job, 1, 1);
+            scheduler.add_job(&independent_job, 1, 1);
+            scheduler.add_dependency("throwing-job", "dependent-job");
+            scheduler.start();
+        }
+
+        all_passed &= report_test(
+            "throwing jobs fail without stopping workers and skip dependents",
+            executed_jobs == std::vector<std::string>{"independent-job"});
+    }
+
+    {
+        StubJob job("callback-exception-job", 1);
+        ThreadPool pool(1, [](const std::string&, Job_Status) -> FinishedJobs {
+            throw std::runtime_error("expected callback exception");
+        });
+        pool.push_job(&job, 1, 1);
+    }
+    all_passed &= report_test(
+        "callback exceptions do not terminate worker threads",
+        true);
 
     {
         StubJob cyclic_job_a("cyclic-A", 3);

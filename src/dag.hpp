@@ -48,6 +48,14 @@ public:
         return ready;
     }
 
+    std::vector<std::string> dependents_of(const std::string& id) const {
+        const auto it = dependents_.find(id);
+        if (it == dependents_.end()) {
+            return {};
+        }
+        return it->second;
+    }
+
     bool has_cycle() const {
         auto temp = indegree_;
         std::queue<std::string> q;
