@@ -1,0 +1,7 @@
+{
+	"InstallScripts" : 
+	[
+		"/home/sudha/projects/schd/build-asan/_deps/googletest-subbuild/cmake_install.cmake"
+	],
+	"Parallel" : false
+}

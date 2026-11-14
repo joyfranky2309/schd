@@ -1,0 +1,80 @@
+[
+{
+  "directory": "/home/sudha/projects/schd/build-asan",
+  "command": "/usr/bin/c++  -I/home/sudha/projects/schd/src -O3 -DNDEBUG -std=c++20 -Wall -Wextra -Wpedantic -fsanitize=address,undefined -fno-omit-frame-pointer -o CMakeFiles/schd_core.dir/src/job_status.cpp.o -c /home/sudha/projects/schd/src/job_status.cpp",
+  "file": "/home/sudha/projects/schd/src/job_status.cpp",
+  "output": "CMakeFiles/schd_core.dir/src/job_status.cpp.o"
+},
+{
+  "directory": "/home/sudha/projects/schd/build-asan",
+  "command": "/usr/bin/c++  -I/home/sudha/projects/schd/src -O3 -DNDEBUG -std=c++20 -Wall -Wextra -Wpedantic -fsanitize=address,undefined -fno-omit-frame-pointer -o CMakeFiles/schd_core.dir/src/job_run.cpp.o -c /home/sudha/projects/schd/src/job_run.cpp",
+  "file": "/home/sudha/projects/schd/src/job_run.cpp",
+  "output": "CMakeFiles/schd_core.dir/src/job_run.cpp.o"
+},
+{
+  "directory": "/home/sudha/projects/schd/build-asan",
+  "command": "/usr/bin/c++  -I/home/sudha/projects/schd/src -O3 -DNDEBUG -std=c++20 -Wall -Wextra -Wpedantic -fsanitize=address,undefined -fno-omit-frame-pointer -o CMakeFiles/schd_core.dir/src/stub_job.cpp.o -c /home/sudha/projects/schd/src/stub_job.cpp",
+  "file": "/home/sudha/projects/schd/src/stub_job.cpp",
+  "output": "CMakeFiles/schd_core.dir/src/stub_job.cpp.o"
+},
+{
+  "directory": "/home/sudha/projects/schd/build-asan",
+  "command": "/usr/bin/c++  -I/home/sudha/projects/schd/src -O3 -DNDEBUG -std=c++20 -Wall -Wextra -Wpedantic -fsanitize=address,undefined -fno-omit-frame-pointer -o CMakeFiles/schd_core.dir/src/failing_stub_job.cpp.o -c /home/sudha/projects/schd/src/failing_stub_job.cpp",
+  "file": "/home/sudha/projects/schd/src/failing_stub_job.cpp",
+  "output": "CMakeFiles/schd_core.dir/src/failing_stub_job.cpp.o"
+},
+{
+  "directory": "/home/sudha/projects/schd/build-asan",
+  "command": "/usr/bin/c++  -I/home/sudha/projects/schd/src -O3 -DNDEBUG -std=c++20 -Wall -Wextra -Wpedantic -fsanitize=address,undefined -fno-omit-frame-pointer -o CMakeFiles/schd.dir/src/main.cpp.o -c /home/sudha/projects/schd/src/main.cpp",
+  "file": "/home/sudha/projects/schd/src/main.cpp",
+  "output": "CMakeFiles/schd.dir/src/main.cpp.o"
+},
+{
+  "directory": "/home/sudha/projects/schd/build-asan",
+  "command": "/usr/bin/c++  -I/home/sudha/projects/schd/src -isystem /home/sudha/projects/schd/build-asan/_deps/googletest-src/googletest/include -isystem /home/sudha/projects/schd/build-asan/_deps/googletest-src/googletest -O3 -DNDEBUG -std=c++20 -Wall -Wextra -Wpedantic -fsanitize=address,undefined -fno-omit-frame-pointer -o CMakeFiles/schd_tests.dir/tests/test_dag.cpp.o -c /home/sudha/projects/schd/tests/test_dag.cpp",
+  "file": "/home/sudha/projects/schd/tests/test_dag.cpp",
+  "output": "CMakeFiles/schd_tests.dir/tests/test_dag.cpp.o"
+},
+{
+  "directory": "/home/sudha/projects/schd/build-asan",
+  "command": "/usr/bin/c++  -I/home/sudha/projects/schd/src -isystem /home/sudha/projects/schd/build-asan/_deps/googletest-src/googletest/include -isystem /home/sudha/projects/schd/build-asan/_deps/googletest-src/googletest -O3 -DNDEBUG -std=c++20 -Wall -Wextra -Wpedantic -fsanitize=address,undefined -fno-omit-frame-pointer -o CMakeFiles/schd_tests.dir/tests/test_job_run.cpp.o -c /home/sudha/projects/schd/tests/test_job_run.cpp",
+  "file": "/home/sudha/projects/schd/tests/test_job_run.cpp",
+  "output": "CMakeFiles/schd_tests.dir/tests/test_job_run.cpp.o"
+},
+{
+  "directory": "/home/sudha/projects/schd/build-asan",
+  "command": "/usr/bin/c++  -I/home/sudha/projects/schd/src -isystem /home/sudha/projects/schd/build-asan/_deps/googletest-src/googletest/include -isystem /home/sudha/projects/schd/build-asan/_deps/googletest-src/googletest -O3 -DNDEBUG -std=c++20 -Wall -Wextra -Wpedantic -fsanitize=address,undefined -fno-omit-frame-pointer -o CMakeFiles/schd_tests.dir/tests/test_job_status.cpp.o -c /home/sudha/projects/schd/tests/test_job_status.cpp",
+  "file": "/home/sudha/projects/schd/tests/test_job_status.cpp",
+  "output": "CMakeFiles/schd_tests.dir/tests/test_job_status.cpp.o"
+},
+{
+  "directory": "/home/sudha/projects/schd/build-asan",
+  "command": "/usr/bin/c++  -I/home/sudha/projects/schd/src -isystem /home/sudha/projects/schd/build-asan/_deps/googletest-src/googletest/include -isystem /home/sudha/projects/schd/build-asan/_deps/googletest-src/googletest -O3 -DNDEBUG -std=c++20 -Wall -Wextra -Wpedantic -fsanitize=address,undefined -fno-omit-frame-pointer -o CMakeFiles/schd_tests.dir/tests/test_scheduler.cpp.o -c /home/sudha/projects/schd/tests/test_scheduler.cpp",
+  "file": "/home/sudha/projects/schd/tests/test_scheduler.cpp",
+  "output": "CMakeFiles/schd_tests.dir/tests/test_scheduler.cpp.o"
+},
+{
+  "directory": "/home/sudha/projects/schd/build-asan/_deps/googletest-build/googlemock",
+  "command": "/usr/bin/c++  -I/home/sudha/projects/schd/build-asan/_deps/googletest-src/googlemock/include -I/home/sudha/projects/schd/build-asan/_deps/googletest-src/googlemock -isystem /home/sudha/projects/schd/build-asan/_deps/googletest-src/googletest/include -isystem /home/sudha/projects/schd/build-asan/_deps/googletest-src/googletest -O3 -DNDEBUG -std=c++20 -Wall -Wshadow -Wundef -Wno-error=dangling-else -DGTEST_HAS_PTHREAD=1 -fexceptions -Wextra -Wno-unused-parameter -Wno-missing-field-initializers -o CMakeFiles/gmock.dir/src/gmock-all.cc.o -c /home/sudha/projects/schd/build-asan/_deps/googletest-src/googlemock/src/gmock-all.cc",
+  "file": "/home/sudha/projects/schd/build-asan/_deps/googletest-src/googlemock/src/gmock-all.cc",
+  "output": "_deps/googletest-build/googlemock/CMakeFiles/gmock.dir/src/gmock-all.cc.o"
+},
+{
+  "directory": "/home/sudha/projects/schd/build-asan/_deps/googletest-build/googlemock",
+  "command": "/usr/bin/c++  -isystem /home/sudha/projects/schd/build-asan/_deps/googletest-src/googlemock/include -isystem /home/sudha/projects/schd/build-asan/_deps/googletest-src/googlemock -isystem /home/sudha/projects/schd/build-asan/_deps/googletest-src/googletest/include -isystem /home/sudha/projects/schd/build-asan/_deps/googletest-src/googletest -O3 -DNDEBUG -std=c++20 -Wall -Wshadow -Wundef -Wno-error=dangling-else -DGTEST_HAS_PTHREAD=1 -fexceptions -Wextra -Wno-unused-parameter -Wno-missing-field-initializers -o CMakeFiles/gmock_main.dir/src/gmock_main.cc.o -c /home/sudha/projects/schd/build-asan/_deps/googletest-src/googlemock/src/gmock_main.cc",
+  "file": "/home/sudha/projects/schd/build-asan/_deps/googletest-src/googlemock/src/gmock_main.cc",
+  "output": "_deps/googletest-build/googlemock/CMakeFiles/gmock_main.dir/src/gmock_main.cc.o"
+},
+{
+  "directory": "/home/sudha/projects/schd/build-asan/_deps/googletest-build/googletest",
+  "command": "/usr/bin/c++  -I/home/sudha/projects/schd/build-asan/_deps/googletest-src/googletest/include -I/home/sudha/projects/schd/build-asan/_deps/googletest-src/googletest -O3 -DNDEBUG -std=c++20 -Wall -Wshadow -Wundef -Wno-error=dangling-else -DGTEST_HAS_PTHREAD=1 -fexceptions -Wextra -Wno-unused-parameter -Wno-missing-field-initializers -o CMakeFiles/gtest.dir/src/gtest-all.cc.o -c /home/sudha/projects/schd/build-asan/_deps/googletest-src/googletest/src/gtest-all.cc",
+  "file": "/home/sudha/projects/schd/build-asan/_deps/googletest-src/googletest/src/gtest-all.cc",
+  "output": "_deps/googletest-build/googletest/CMakeFiles/gtest.dir/src/gtest-all.cc.o"
+},
+{
+  "directory": "/home/sudha/projects/schd/build-asan/_deps/googletest-build/googletest",
+  "command": "/usr/bin/c++  -isystem /home/sudha/projects/schd/build-asan/_deps/googletest-src/googletest/include -isystem /home/sudha/projects/schd/build-asan/_deps/googletest-src/googletest -O3 -DNDEBUG -std=c++20 -Wall -Wshadow -Wundef -Wno-error=dangling-else -DGTEST_HAS_PTHREAD=1 -fexceptions -Wextra -Wno-unused-parameter -Wno-missing-field-initializers -o CMakeFiles/gtest_main.dir/src/gtest_main.cc.o -c /home/sudha/projects/schd/build-asan/_deps/googletest-src/googletest/src/gtest_main.cc",
+  "file": "/home/sudha/projects/schd/build-asan/_deps/googletest-src/googletest/src/gtest_main.cc",
+  "output": "_deps/googletest-build/googletest/CMakeFiles/gtest_main.dir/src/gtest_main.cc.o"
+}
+]

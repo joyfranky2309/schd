@@ -1,0 +1,1 @@
+/usr/bin/c++ -O3 -DNDEBUG -fsanitize=thread -Wl,--dependency-file=CMakeFiles/schd_tests.dir/link.d CMakeFiles/schd_tests.dir/tests/test_dag.cpp.o CMakeFiles/schd_tests.dir/tests/test_job_run.cpp.o CMakeFiles/schd_tests.dir/tests/test_job_status.cpp.o CMakeFiles/schd_tests.dir/tests/test_scheduler.cpp.o -o schd_tests  libschd_core.a lib/libgtest_main.a lib/libgtest.a

@@ -1,0 +1,5 @@
+if(EXISTS "/home/sudha/projects/schd/build-asan/schd_tests[1]_tests.cmake")
+  include("/home/sudha/projects/schd/build-asan/schd_tests[1]_tests.cmake")
+else()
+  add_test(schd_tests_NOT_BUILT schd_tests_NOT_BUILT)
+endif()

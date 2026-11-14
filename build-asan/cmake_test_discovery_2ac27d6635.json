@@ -1,0 +1,95 @@
+{
+  "tests": 13,
+  "name": "AllTests",
+  "testsuites": [
+    {
+      "name": "DAG",
+      "tests": 2,
+      "testsuite": [
+        {
+          "name": "StandaloneJobsAreInitiallyReady",
+          "file": "\/home\/sudha\/projects\/schd\/tests\/test_dag.cpp",
+          "line": 7
+        },
+        {
+          "name": "CyclicGraphIsRejectedBeforeScheduling",
+          "file": "\/home\/sudha\/projects\/schd\/tests\/test_dag.cpp",
+          "line": 15
+        }
+      ]
+    },
+    {
+      "name": "JobRun",
+      "tests": 3,
+      "testsuite": [
+        {
+          "name": "SuccessfulJobEndsInSuccessWithTimestamps",
+          "file": "\/home\/sudha\/projects\/schd\/tests\/test_job_run.cpp",
+          "line": 19
+        },
+        {
+          "name": "FailingJobEndsInFailedWithTimestamps",
+          "file": "\/home\/sudha\/projects\/schd\/tests\/test_job_run.cpp",
+          "line": 28
+        },
+        {
+          "name": "IllegalPendingToRunningTransitionIsRejected",
+          "file": "\/home\/sudha\/projects\/schd\/tests\/test_job_run.cpp",
+          "line": 37
+        }
+      ]
+    },
+    {
+      "name": "JobStatus",
+      "tests": 3,
+      "testsuite": [
+        {
+          "name": "StringValuesMatchEnum",
+          "file": "\/home\/sudha\/projects\/schd\/tests\/test_job_status.cpp",
+          "line": 7
+        },
+        {
+          "name": "LegalTransitionsAreAllowed",
+          "file": "\/home\/sudha\/projects\/schd\/tests\/test_job_status.cpp",
+          "line": 16
+        },
+        {
+          "name": "IllegalTransitionsAreRejected",
+          "file": "\/home\/sudha\/projects\/schd\/tests\/test_job_status.cpp",
+          "line": 26
+        }
+      ]
+    },
+    {
+      "name": "Scheduler",
+      "tests": 5,
+      "testsuite": [
+        {
+          "name": "DependencyOrderIsRespectedAcrossConcurrentRuns",
+          "file": "\/home\/sudha\/projects\/schd\/tests\/test_scheduler.cpp",
+          "line": 26
+        },
+        {
+          "name": "PriorityOrderingPreservesCategoryAndInsertionPriority",
+          "file": "\/home\/sudha\/projects\/schd\/tests\/test_scheduler.cpp",
+          "line": 82
+        },
+        {
+          "name": "ThrowingJobsFailWithoutStoppingWorkersAndSkipDependents",
+          "file": "\/home\/sudha\/projects\/schd\/tests\/test_scheduler.cpp",
+          "line": 113
+        },
+        {
+          "name": "CallbackExceptionsDoNotTerminateWorkerThreads",
+          "file": "\/home\/sudha\/projects\/schd\/tests\/test_scheduler.cpp",
+          "line": 140
+        },
+        {
+          "name": "CyclicGraphIsRejectedBeforeScheduling",
+          "file": "\/home\/sudha\/projects\/schd\/tests\/test_scheduler.cpp",
+          "line": 154
+        }
+      ]
+    }
+  ]
+}

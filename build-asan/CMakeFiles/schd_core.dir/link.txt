@@ -1,0 +1,2 @@
+/usr/bin/ar qc libschd_core.a CMakeFiles/schd_core.dir/src/job_status.cpp.o CMakeFiles/schd_core.dir/src/job_run.cpp.o CMakeFiles/schd_core.dir/src/stub_job.cpp.o CMakeFiles/schd_core.dir/src/failing_stub_job.cpp.o
+/usr/bin/ranlib libschd_core.a

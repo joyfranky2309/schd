@@ -1,0 +1,10 @@
+{
+	"InstallScripts" : 
+	[
+		"/home/sudha/projects/schd/build-asan/cmake_install.cmake",
+		"/home/sudha/projects/schd/build-asan/_deps/googletest-build/cmake_install.cmake",
+		"/home/sudha/projects/schd/build-asan/_deps/googletest-build/googlemock/cmake_install.cmake",
+		"/home/sudha/projects/schd/build-asan/_deps/googletest-build/googletest/cmake_install.cmake"
+	],
+	"Parallel" : false
+}

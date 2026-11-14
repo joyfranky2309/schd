@@ -1,0 +1,14 @@
+DAG.StandaloneJobsAreInitiallyReady 20 0.021441
+DAG.CyclicGraphIsRejectedBeforeScheduling 20 0.0218402
+JobRun.SuccessfulJobEndsInSuccessWithTimestamps 20 0.0192106
+JobRun.FailingJobEndsInFailedWithTimestamps 20 0.0188481
+JobRun.IllegalPendingToRunningTransitionIsRejected 20 0.0202065
+JobStatus.StringValuesMatchEnum 20 0.0216644
+JobStatus.LegalTransitionsAreAllowed 20 0.0215168
+JobStatus.IllegalTransitionsAreRejected 20 0.0190154
+Scheduler.DependencyOrderIsRespectedAcrossConcurrentRuns 20 0.105109
+Scheduler.PriorityOrderingPreservesCategoryAndInsertionPriority 20 0.0207717
+Scheduler.ThrowingJobsFailWithoutStoppingWorkersAndSkipDependents 20 0.022916
+Scheduler.CallbackExceptionsDoNotTerminateWorkerThreads 20 0.0258486
+Scheduler.CyclicGraphIsRejectedBeforeScheduling 20 0.0243047
+---
