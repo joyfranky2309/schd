@@ -29,3 +29,25 @@ TEST(DAG, CyclicGraphIsRejectedBeforeScheduling) {
 
     EXPECT_TRUE(dag.has_cycle());
 }
+
+TEST(DAG, TransitiveDependentsAreReturnedOnce) {
+    DAG dag;
+    dag.add_edge("job-A", "job-C");
+    dag.add_edge("job-B", "job-C");
+    dag.add_edge("job-C", "job-D");
+
+    EXPECT_EQ(
+        dag.transitive_dependents("job-A"),
+        (std::vector<std::string>{"job-C", "job-D"}));
+}
+
+TEST(DAG, FinishedJobsNeverReleaseSkippedDependents) {
+    DAG dag;
+    dag.add_edge("job-A", "job-C");
+    dag.add_edge("job-B", "job-C");
+    ASSERT_TRUE(dag.mark_skipped("job-C"));
+    EXPECT_FALSE(dag.mark_skipped("job-C"));
+
+    EXPECT_TRUE(dag.mark_finished("job-A").empty());
+    EXPECT_TRUE(dag.mark_finished("job-B").empty());
+}

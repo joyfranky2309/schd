@@ -1,7 +1,9 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
+#include <atomic>
 #include <chrono>
+#include <cstddef>
 #include <memory>
 #include <mutex>
 #include <random>
@@ -10,6 +12,7 @@
 #include <thread>
 #include <vector>
 
+#include "failing_stub_job.hpp"
 #include "scheduler.hpp"
 #include "stub_job.hpp"
 
@@ -160,9 +163,141 @@ TEST(Scheduler, ThrowingJobsFailWithoutStoppingWorkersAndSkipDependents) {
         scheduler.add_dependency("throwing-job", "dependent-job");
         scheduler.add_dependency("dependent-job", "downstream-job");
         scheduler.start();
+        scheduler.wait();
+
+        EXPECT_EQ(scheduler.final_status("throwing-job"), Job_Status::FAILED);
+        EXPECT_EQ(scheduler.final_status("dependent-job"), Job_Status::SKIPPED);
+        EXPECT_EQ(scheduler.final_status("downstream-job"), Job_Status::SKIPPED);
+        EXPECT_EQ(scheduler.final_status("independent-job"), Job_Status::SUCCESS);
     }
 
     EXPECT_EQ(executed_jobs, std::vector<std::string>{"independent-job"});
+}
+
+TEST(Scheduler, WaitRequiresStartAndFinalStatusRequiresWait) {
+    StubJob job("wait-guard-job", 1);
+    Scheduler scheduler(1);
+
+    EXPECT_THROW(scheduler.wait(), std::logic_error);
+    scheduler.add_job(&job, 1, 1);
+    scheduler.start();
+    EXPECT_THROW(scheduler.final_status("wait-guard-job"), std::logic_error);
+    scheduler.wait();
+
+    EXPECT_EQ(scheduler.final_status("wait-guard-job"), Job_Status::SUCCESS);
+    EXPECT_THROW(scheduler.final_status("missing-job"), std::out_of_range);
+}
+
+TEST(Scheduler, WaitCompletesForAllSuccessAndAllFailureRuns) {
+    StubJob success_a("success-A", 1);
+    StubJob success_b("success-B", 1);
+    {
+        Scheduler scheduler(2);
+        scheduler.add_job(&success_a, 1, 1);
+        scheduler.add_job(&success_b, 1, 1);
+        scheduler.start();
+        scheduler.wait();
+
+        EXPECT_EQ(scheduler.final_status("success-A"), Job_Status::SUCCESS);
+        EXPECT_EQ(scheduler.final_status("success-B"), Job_Status::SUCCESS);
+    }
+
+    FailingStubJob failure_a("failure-A", 1);
+    FailingStubJob failure_b("failure-B", 1);
+    {
+        Scheduler scheduler(2);
+        scheduler.add_job(&failure_a, 1, 1);
+        scheduler.add_job(&failure_b, 1, 1);
+        scheduler.start();
+        scheduler.wait();
+
+        EXPECT_EQ(scheduler.final_status("failure-A"), Job_Status::FAILED);
+        EXPECT_EQ(scheduler.final_status("failure-B"), Job_Status::FAILED);
+    }
+}
+
+TEST(Scheduler, MixedChainRunSkipsDependentsAndKeepsIndependentJobRunning) {
+    for (int iteration = 0; iteration < 50; ++iteration) {
+        std::vector<std::string> executed_jobs;
+        FailingStubJob job_a("job-A", 1);
+        StubJob job_b("job-B", 1, [&](const std::string& id) {
+            executed_jobs.push_back(id);
+        });
+        StubJob job_c("job-C", 1, [&](const std::string& id) {
+            executed_jobs.push_back(id);
+        });
+        StubJob independent_job("job-E", 1, [&](const std::string& id) {
+            executed_jobs.push_back(id);
+        });
+
+        Scheduler scheduler(3);
+        scheduler.add_job(&job_a, 1, 1);
+        scheduler.add_job(&job_b, 1, 1);
+        scheduler.add_job(&job_c, 1, 1);
+        scheduler.add_job(&independent_job, 1, 1);
+        scheduler.add_dependency("job-A", "job-B");
+        scheduler.add_dependency("job-B", "job-C");
+        scheduler.start();
+        scheduler.wait();
+
+        EXPECT_EQ(scheduler.final_status("job-A"), Job_Status::FAILED);
+        EXPECT_EQ(scheduler.final_status("job-B"), Job_Status::SKIPPED);
+        EXPECT_EQ(scheduler.final_status("job-C"), Job_Status::SKIPPED);
+        EXPECT_EQ(scheduler.final_status("job-E"), Job_Status::SUCCESS);
+        EXPECT_EQ(executed_jobs, std::vector<std::string>{"job-E"});
+    }
+}
+
+TEST(Scheduler, DiamondSkipsSharedDependentEvenWhenOtherParentSucceeds) {
+    std::atomic<int> dependent_execution_count{0};
+    FailingStubJob job_a("job-A", 1);
+    StubJob job_b("job-B", 1);
+    StubJob job_c("job-C", 1, [&](const std::string&) {
+        ++dependent_execution_count;
+    });
+
+    Scheduler scheduler(2);
+    scheduler.add_job(&job_a, 1, 1);
+    scheduler.add_job(&job_b, 1, 1);
+    scheduler.add_job(&job_c, 1, 1);
+    scheduler.add_dependency("job-A", "job-C");
+    scheduler.add_dependency("job-B", "job-C");
+    scheduler.start();
+    scheduler.wait();
+
+    EXPECT_EQ(scheduler.final_status("job-A"), Job_Status::FAILED);
+    EXPECT_EQ(scheduler.final_status("job-B"), Job_Status::SUCCESS);
+    EXPECT_EQ(scheduler.final_status("job-C"), Job_Status::SKIPPED);
+    EXPECT_EQ(dependent_execution_count.load(), 0);
+}
+
+TEST(Scheduler, FailureSkipsWideFanOutExactlyOnce) {
+    constexpr int dependent_count = 20;
+    std::atomic<int> dependent_execution_count{0};
+    FailingStubJob failed_job("failed-job", 1);
+    std::vector<std::unique_ptr<StubJob>> dependents;
+    dependents.reserve(dependent_count);
+    for (int i = 0; i < dependent_count; ++i) {
+        dependents.push_back(std::make_unique<StubJob>(
+            "dependent-" + std::to_string(i),
+            1,
+            [&](const std::string&) { ++dependent_execution_count; }));
+    }
+
+    Scheduler scheduler(4);
+    scheduler.add_job(&failed_job, 1, 1);
+    for (const auto& dependent : dependents) {
+        scheduler.add_job(dependent.get(), 1, 1);
+        scheduler.add_dependency(failed_job.id(), dependent->id());
+    }
+    scheduler.start();
+    scheduler.wait();
+
+    EXPECT_EQ(scheduler.final_status(failed_job.id()), Job_Status::FAILED);
+    for (const auto& dependent : dependents) {
+        EXPECT_EQ(scheduler.final_status(dependent->id()), Job_Status::SKIPPED);
+    }
+    EXPECT_EQ(dependent_execution_count.load(), 0);
 }
 
 TEST(ThreadPool, ThrowingJobPreservesExceptionMessageInResult) {

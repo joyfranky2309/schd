@@ -137,6 +137,8 @@ private:
 
                 try {
                     std::deque<ReadyJob> skipped_jobs;
+                    // This callback runs under queue_mutex_; it returns jobs rather than
+                    // enqueuing them through the pool.
                     const auto finished_jobs = on_finished_(job->id(), result);
                     for (const auto& ready_job : finished_jobs.ready) {
                         push_job_locked(
