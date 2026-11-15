@@ -16,6 +16,7 @@
 #include "job_status.hpp"
 #include "job.hpp"
 #include "job_run.hpp"
+#include "exec_result.hpp"
 #include <memory>
 
 struct ReadyJob {
@@ -48,7 +49,7 @@ class ThreadPool
 {
 public:
     using FinishedCallback = std::function<FinishedJobs(
-        const std::string& id, Job_Status result)>;
+        const std::string& id, const ExecResult& result)>;
 
 private:
     std::vector<std::thread> threads;
@@ -82,17 +83,19 @@ private:
             ready_queue.pop();
             lock.unlock();
 
-            Job_Status result = Job_Status::FAILED;
+            ExecResult result{Job_Status::FAILED, -1, "Job execution did not start"};
             bool should_execute = true;
             try {
                 run->transition_to(Job_Status::RUNNING);
             } catch (const std::exception& error) {
                 std::cerr << "Job " << job->id()
                           << " could not enter RUNNING: " << error.what() << '\n';
+                result = ExecResult{Job_Status::FAILED, -1, error.what()};
                 should_execute = false;
             } catch (...) {
                 std::cerr << "Job " << job->id()
                           << " could not enter RUNNING due to an unknown error\n";
+                result = ExecResult{Job_Status::FAILED, -1, "Unknown error entering RUNNING"};
                 should_execute = false;
             }
 
@@ -102,9 +105,11 @@ private:
                 } catch (const std::exception& error) {
                     std::cerr << "Job " << job->id()
                               << " failed with an exception: " << error.what() << '\n';
+                    result = ExecResult{Job_Status::FAILED, -1, error.what()};
                 } catch (...) {
                     std::cerr << "Job " << job->id()
                               << " failed with an unknown exception\n";
+                    result = ExecResult{Job_Status::FAILED, -1, "Unknown job exception"};
                 }
             }
 
@@ -112,13 +117,13 @@ private:
             {
                 std::lock_guard<std::mutex> completion_lock(queue_mutex_);
                 try {
-                    run->transition_to(result);
+                    run->transition_to(result.status);
                 } catch (const std::exception& error) {
                     std::cerr << "Could not record completion for job " << job->id()
                               << ": " << error.what() << '\n';
-                    result = Job_Status::FAILED;
+                    result = ExecResult{Job_Status::FAILED, -1, error.what()};
                     try {
-                        run->transition_to(result);
+                        run->transition_to(result.status);
                     } catch (const std::exception& fallback_error) {
                         std::cerr << "Could not mark job " << job->id()
                                   << " as FAILED: " << fallback_error.what() << '\n';
@@ -126,7 +131,8 @@ private:
                 } catch (...) {
                     std::cerr << "Could not record completion for job " << job->id()
                               << " due to an unknown error\n";
-                    result = Job_Status::FAILED;
+                    result = ExecResult{
+                        Job_Status::FAILED, -1, "Unknown error recording completion"};
                 }
 
                 try {
@@ -150,7 +156,7 @@ private:
                         std::cerr << "Job " << skipped_job.job->id()
                                   << " skipped because a dependency did not succeed\n";
                         const auto newly_skipped = on_finished_(
-                            skipped_job.job->id(), Job_Status::SKIPPED);
+                            skipped_job.job->id(), ExecResult{Job_Status::SKIPPED});
                         for (const auto& ready_job : newly_skipped.ready) {
                             push_job_locked(
                                 ready_job.job,

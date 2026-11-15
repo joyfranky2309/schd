@@ -9,7 +9,7 @@ public:
         std::string id,
         int max_attempts,
         std::function<void(const std::string&)> on_execute = {});
-    Job_Status execute() override;
+    ExecResult execute() override;
 
 private:
     std::function<void(const std::string&)> on_execute_;

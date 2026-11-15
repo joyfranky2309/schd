@@ -25,9 +25,9 @@ class Scheduler {
 
 public:
     explicit Scheduler(size_t num_threads)
-        : pool_(num_threads, [this](const std::string& id, Job_Status result) {
+        : pool_(num_threads, [this](const std::string& id, const ExecResult& result) {
             FinishedJobs finished_jobs;
-            if (result == Job_Status::SUCCESS) {
+            if (result.status == Job_Status::SUCCESS) {
                 for (const auto& ready_id : dag_.mark_finished(id)) {
                     if (skipped_jobs_.find(ready_id) != skipped_jobs_.end()) {
                         continue;

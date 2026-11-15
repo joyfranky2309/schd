@@ -11,7 +11,7 @@ JobRun execute_job(Job& job) {
     JobRun run(job.id());
     run.transition_to(Job_Status::QUEUED);
     run.transition_to(Job_Status::RUNNING);
-    run.transition_to(job.execute());
+    run.transition_to(job.execute().status);
     return run;
 }
 }

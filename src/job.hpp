@@ -1,7 +1,10 @@
 // job.hpp
 #pragma once
 #include <string>
-#include "job_status.hpp"
+#include <utility>
+
+#include "exec_result.hpp"
+
 class Job {
 public:
     Job(std::string id, int max_attempts)
@@ -9,7 +12,7 @@ public:
 
     virtual ~Job() = default; // base class with virtuals needs a virtual dtor
 
-    virtual Job_Status execute() = 0; // pure virtual — subclasses define *how* the work runs
+    virtual ExecResult execute() = 0;
 
     const std::string& id() const { return id_; }
     int max_attempts() const { return max_attempts_; }

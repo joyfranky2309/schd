@@ -14,11 +14,11 @@
 #include "stub_job.hpp"
 
 namespace {
-class ThrowingJob : public Job {
+class ThrowingStubJob : public Job {
 public:
-    explicit ThrowingJob(std::string id) : Job(std::move(id), 1) {}
+    explicit ThrowingStubJob(std::string id) : Job(std::move(id), 1) {}
 
-    Job_Status execute() override {
+    ExecResult execute() override {
         throw std::runtime_error("expected test exception");
     }
 };
@@ -146,7 +146,7 @@ TEST(Scheduler, ThrowingJobsFailWithoutStoppingWorkersAndSkipDependents) {
         executed_jobs.push_back(id);
     };
 
-    ThrowingJob throwing_job("throwing-job");
+    ThrowingStubJob throwing_job("throwing-job");
     StubJob dependent_job("dependent-job", 1, record_execution);
     StubJob downstream_job("downstream-job", 1, record_execution);
     StubJob independent_job("independent-job", 1, record_execution);
@@ -165,18 +165,40 @@ TEST(Scheduler, ThrowingJobsFailWithoutStoppingWorkersAndSkipDependents) {
     EXPECT_EQ(executed_jobs, std::vector<std::string>{"independent-job"});
 }
 
-TEST(Scheduler, CallbackExceptionsDoNotTerminateWorkerThreads) {
-    StubJob job("callback-exception-job", 1);
+TEST(ThreadPool, ThrowingJobPreservesExceptionMessageInResult) {
+    ThrowingStubJob job("throwing-result-job");
+    ExecResult observed_result{Job_Status::PENDING};
     bool callback_invoked = false;
     {
-        ThreadPool pool(1, [&](const std::string&, Job_Status) -> FinishedJobs {
+        ThreadPool pool(1, [&](const std::string&, const ExecResult& result) {
+            observed_result = result;
             callback_invoked = true;
-            throw std::runtime_error("expected callback exception");
+            return FinishedJobs{};
         });
         pool.push_job(&job, 1, 1);
     }
 
-    EXPECT_TRUE(callback_invoked);
+    ASSERT_TRUE(callback_invoked);
+    EXPECT_EQ(observed_result.status, Job_Status::FAILED);
+    EXPECT_EQ(observed_result.exit_code, -1);
+    EXPECT_EQ(observed_result.message, "expected test exception");
+}
+
+TEST(Scheduler, CallbackExceptionsDoNotTerminateWorkerThreads) {
+    StubJob first_job("callback-exception-job-1", 1);
+    StubJob second_job("callback-exception-job-2", 1);
+    int callback_count = 0;
+    {
+        ThreadPool pool(1, [&](const std::string&, const ExecResult&) -> FinishedJobs {
+            ++callback_count;
+            throw std::runtime_error("expected callback exception");
+        });
+        pool.push_jobs({
+            ReadyJob{&first_job, 1, 1},
+            ReadyJob{&second_job, 1, 1}});
+    }
+
+    EXPECT_EQ(callback_count, 2);
 }
 
 TEST(Scheduler, CyclicGraphIsRejectedBeforeScheduling) {
