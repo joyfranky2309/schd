@@ -12,6 +12,16 @@ TEST(DAG, StandaloneJobsAreInitiallyReady) {
     EXPECT_EQ(dag.initial_ready(), std::vector<std::string>{"standalone-job"});
 }
 
+TEST(DAG, InitiallyReadyJobsFollowRegistrationOrder) {
+    DAG dag;
+    dag.add_job("first");
+    dag.add_job("dependent");
+    dag.add_job("second");
+    dag.add_edge("first", "dependent");
+
+    EXPECT_EQ(dag.initial_ready(), (std::vector<std::string>{"first", "second"}));
+}
+
 TEST(DAG, CyclicGraphIsRejectedBeforeScheduling) {
     DAG dag;
     dag.add_edge("job-A", "job-B");

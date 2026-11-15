@@ -9,23 +9,22 @@
 class DAG {
 public:
     void add_job(const std::string& id) {
-        indegree_.try_emplace(id, 0);
+        if (indegree_.try_emplace(id, 0).second) {
+            registration_order_.push_back(id);
+        }
     }
 
     void add_edge(const std::string& from, const std::string& to) {
-        
+        add_job(from);
+        add_job(to);
         dependents_[from].push_back(to);
-        
         indegree_[to]++;
-        
-        indegree_.try_emplace(from,0);
     }
 
     std::vector<std::string> initial_ready() const {
-        
-        std::vector<std::string>ready;
-        for(const auto&[id,degree]:indegree_){
-            if(degree==0){
+        std::vector<std::string> ready;
+        for (const auto& id : registration_order_) {
+            if (indegree_.at(id) == 0) {
                 ready.push_back(id);
             }
         }
@@ -90,4 +89,5 @@ public:
 private:
     std::unordered_map<std::string, std::vector<std::string>> dependents_;
     std::unordered_map<std::string, int> indegree_;
+    std::vector<std::string> registration_order_;
 };

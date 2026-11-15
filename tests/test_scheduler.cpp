@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <memory>
 #include <mutex>
 #include <random>
 #include <stdexcept>
@@ -96,10 +97,10 @@ TEST(Scheduler, PriorityOrderingPreservesCategoryAndInsertionPriority) {
     {
         Scheduler scheduler(1);
         scheduler.add_job(&jobA, 1, 5);
-        scheduler.add_job(&jobB, 2, 4);
+        scheduler.add_job(&jobB, 2, 1);
         scheduler.add_job(&jobC, 2, 5);
         scheduler.add_job(&jobD, 1, 3);
-        scheduler.add_job(&jobE, 2, 3);
+        scheduler.add_job(&jobE, 2, 1);
         scheduler.start();
 
         EXPECT_THROW(scheduler.start(), std::logic_error);
@@ -108,6 +109,33 @@ TEST(Scheduler, PriorityOrderingPreservesCategoryAndInsertionPriority) {
     }
 
     EXPECT_EQ(priority_order, (std::vector<std::string>{"job-C", "job-B", "job-E", "job-A", "job-D"}));
+}
+
+TEST(Scheduler, TwentyEqualPriorityJobsRunInRegistrationOrder) {
+    std::vector<std::string> execution_order;
+    auto record_execution = [&](const std::string& id) {
+        execution_order.push_back(id);
+    };
+
+    std::vector<std::unique_ptr<StubJob>> jobs;
+    jobs.reserve(20);
+    for (int i = 0; i < 20; ++i) {
+        jobs.push_back(std::make_unique<StubJob>(
+            "job-" + std::to_string(i), 1, record_execution));
+    }
+
+    std::vector<std::string> expected_order;
+    expected_order.reserve(jobs.size());
+    {
+        Scheduler scheduler(1);
+        for (const auto& job : jobs) {
+            expected_order.push_back(job->id());
+            scheduler.add_job(job.get(), 1, 1);
+        }
+        scheduler.start();
+    }
+
+    EXPECT_EQ(execution_order, expected_order);
 }
 
 TEST(Scheduler, ThrowingJobsFailWithoutStoppingWorkersAndSkipDependents) {
