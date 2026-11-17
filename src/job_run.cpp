@@ -14,6 +14,10 @@ Job_Status JobRun::status() const noexcept {
     return status_;
 }
 
+const std::optional<std::chrono::system_clock::time_point>& JobRun::queued_time() const noexcept {
+    return queued_time_;
+}
+
 const std::optional<std::chrono::system_clock::time_point>& JobRun::start_time() const noexcept {
     return start_time_;
 }
@@ -30,6 +34,9 @@ void JobRun::transition_to(Job_Status new_status) {
     }
 
     const auto now = std::chrono::system_clock::now();
+    if (new_status == Job_Status::QUEUED) {
+        queued_time_ = now;
+    }
     if (new_status == Job_Status::RUNNING) {
         start_time_ = now;
     }

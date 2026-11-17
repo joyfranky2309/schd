@@ -27,7 +27,11 @@ struct ReadyJob {
 
 struct FinishedJobs {
     std::vector<ReadyJob> ready;
-    std::vector<ReadyJob> skipped;
+    struct SkippedJob {
+        ReadyJob job;
+        std::string failed_ancestor;
+    };
+    std::vector<SkippedJob> skipped;
 };
 
 struct QueueItem {
@@ -49,7 +53,7 @@ class ThreadPool
 {
 public:
     using FinishedCallback = std::function<FinishedJobs(
-        const std::string& id, const ExecResult& result)>;
+        const std::string& id, const ExecResult& result, const JobRun& run)>;
 
 private:
     std::vector<std::thread> threads;
@@ -136,10 +140,10 @@ private:
                 }
 
                 try {
-                    std::deque<ReadyJob> skipped_jobs;
+                    std::deque<FinishedJobs::SkippedJob> skipped_jobs;
                     // This callback runs under queue_mutex_; it returns jobs rather than
                     // enqueuing them through the pool.
-                    const auto finished_jobs = on_finished_(job->id(), result);
+                    const auto finished_jobs = on_finished_(job->id(), result, *run);
                     for (const auto& ready_job : finished_jobs.ready) {
                         push_job_locked(
                             ready_job.job, ready_job.category, ready_job.user_priority);
@@ -153,12 +157,17 @@ private:
                         const auto skipped_job = skipped_jobs.front();
                         skipped_jobs.pop_front();
 
-                        JobRun skipped_run(skipped_job.job->id());
+                        JobRun skipped_run(skipped_job.job.job->id());
                         skipped_run.transition_to(Job_Status::SKIPPED);
-                        std::cerr << "Job " << skipped_job.job->id()
+                        const std::string message =
+                            "Skipped because failed ancestor '" +
+                            skipped_job.failed_ancestor + "'";
+                        std::cerr << "Job " << skipped_job.job.job->id()
                                   << " skipped because a dependency did not succeed\n";
                         const auto newly_skipped = on_finished_(
-                            skipped_job.job->id(), ExecResult{Job_Status::SKIPPED});
+                            skipped_job.job.job->id(),
+                            ExecResult{Job_Status::SKIPPED, 0, message},
+                            skipped_run);
                         for (const auto& ready_job : newly_skipped.ready) {
                             push_job_locked(
                                 ready_job.job,

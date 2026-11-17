@@ -21,6 +21,7 @@ TEST(JobRun, SuccessfulJobEndsInSuccessWithTimestamps) {
     const JobRun successful_run = execute_job(successful_job);
 
     EXPECT_EQ(successful_run.status(), Job_Status::SUCCESS);
+    EXPECT_TRUE(successful_run.queued_time().has_value());
     EXPECT_TRUE(successful_run.start_time().has_value());
     EXPECT_TRUE(successful_run.end_time().has_value());
 }
@@ -30,6 +31,7 @@ TEST(JobRun, FailingJobEndsInFailedWithTimestamps) {
     const JobRun failing_run = execute_job(failing_job);
 
     EXPECT_EQ(failing_run.status(), Job_Status::FAILED);
+    EXPECT_TRUE(failing_run.queued_time().has_value());
     EXPECT_TRUE(failing_run.start_time().has_value());
     EXPECT_TRUE(failing_run.end_time().has_value());
 }

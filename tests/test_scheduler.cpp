@@ -4,6 +4,7 @@
 #include <atomic>
 #include <chrono>
 #include <cstddef>
+#include <functional>
 #include <memory>
 #include <mutex>
 #include <random>
@@ -24,6 +25,28 @@ public:
     ExecResult execute() override {
         throw std::runtime_error("expected test exception");
     }
+};
+
+class ResultSequenceJob : public Job {
+public:
+    ResultSequenceJob(
+        std::string id,
+        int max_attempts,
+        std::function<ExecResult(int)> result_for_attempt)
+        : Job(std::move(id), max_attempts),
+          result_for_attempt_(std::move(result_for_attempt)) {}
+
+    ExecResult execute() override {
+        return result_for_attempt_(execution_count_.fetch_add(1));
+    }
+
+    int execution_count() const {
+        return execution_count_.load();
+    }
+
+private:
+    std::function<ExecResult(int)> result_for_attempt_;
+    std::atomic<int> execution_count_{0};
 };
 }
 
@@ -182,10 +205,130 @@ TEST(Scheduler, WaitRequiresStartAndFinalStatusRequiresWait) {
     scheduler.add_job(&job, 1, 1);
     scheduler.start();
     EXPECT_THROW(scheduler.final_status("wait-guard-job"), std::logic_error);
+    EXPECT_THROW(scheduler.history("wait-guard-job"), std::logic_error);
     scheduler.wait();
 
     EXPECT_EQ(scheduler.final_status("wait-guard-job"), Job_Status::SUCCESS);
     EXPECT_THROW(scheduler.final_status("missing-job"), std::out_of_range);
+}
+
+TEST(Scheduler, RetriesFailuresUntilSuccessAndRunsDependentsOnce) {
+    std::atomic<int> dependent_execution_count{0};
+    std::atomic<bool> dependent_started_after_success{false};
+    ResultSequenceJob retrying_job("retrying-job", 3, [](int attempt) {
+        return attempt < 2
+            ? ExecResult{Job_Status::FAILED, 7, "retry"}
+            : ExecResult{Job_Status::SUCCESS};
+    });
+    StubJob dependent_job("retry-dependent", 1, [&](const std::string&) {
+        ++dependent_execution_count;
+        dependent_started_after_success.store(retrying_job.execution_count() == 3);
+    });
+
+    Scheduler scheduler(2);
+    scheduler.add_job(&retrying_job, 1, 1);
+    scheduler.add_job(&dependent_job, 1, 1);
+    scheduler.add_dependency(retrying_job.id(), dependent_job.id());
+    scheduler.start();
+    scheduler.wait();
+
+    const auto records = scheduler.history(retrying_job.id());
+    ASSERT_EQ(records.size(), 3U);
+    EXPECT_EQ(records[0].status, Job_Status::FAILED);
+    EXPECT_EQ(records[1].status, Job_Status::FAILED);
+    EXPECT_EQ(records[2].status, Job_Status::SUCCESS);
+    for (const auto& record : records) {
+        EXPECT_EQ(record.job_id, retrying_job.id());
+        ASSERT_TRUE(record.queued_at.has_value());
+        ASSERT_TRUE(record.started_at.has_value());
+        ASSERT_TRUE(record.finished_at.has_value());
+        EXPECT_LE(*record.queued_at, *record.started_at);
+        EXPECT_LE(*record.started_at, *record.finished_at);
+    }
+    EXPECT_EQ(scheduler.final_status(dependent_job.id()), Job_Status::SUCCESS);
+    EXPECT_EQ(dependent_execution_count.load(), 1);
+    EXPECT_TRUE(dependent_started_after_success.load());
+}
+
+TEST(Scheduler, ExhaustedRetriesFailPermanentlyAndRecordSkippedAncestor) {
+    ResultSequenceJob always_failing_job("always-failing-job", 3, [](int) {
+        return ExecResult{Job_Status::FAILED, 9, "still failing"};
+    });
+    StubJob dependent_job("exhausted-dependent", 1);
+
+    Scheduler scheduler(2);
+    scheduler.add_job(&always_failing_job, 1, 1);
+    scheduler.add_job(&dependent_job, 1, 1);
+    scheduler.add_dependency(always_failing_job.id(), dependent_job.id());
+    scheduler.start();
+    scheduler.wait();
+
+    const auto attempts = scheduler.history(always_failing_job.id());
+    ASSERT_EQ(attempts.size(), 3U);
+    for (std::size_t i = 0; i < attempts.size(); ++i) {
+        EXPECT_EQ(attempts[i].attempt, static_cast<int>(i + 1));
+        EXPECT_EQ(attempts[i].status, Job_Status::FAILED);
+    }
+    EXPECT_EQ(scheduler.final_status(always_failing_job.id()), Job_Status::FAILED);
+    EXPECT_EQ(scheduler.final_status(dependent_job.id()), Job_Status::SKIPPED);
+
+    const auto skipped_history = scheduler.history(dependent_job.id());
+    ASSERT_EQ(skipped_history.size(), 1U);
+    EXPECT_EQ(skipped_history[0].attempt, 0);
+    EXPECT_EQ(skipped_history[0].status, Job_Status::SKIPPED);
+    EXPECT_FALSE(skipped_history[0].queued_at.has_value());
+    EXPECT_FALSE(skipped_history[0].started_at.has_value());
+    EXPECT_TRUE(skipped_history[0].finished_at.has_value());
+    EXPECT_NE(
+        skipped_history[0].message.find(always_failing_job.id()),
+        std::string::npos);
+}
+
+TEST(Scheduler, MaxAttemptsOneDoesNotRetry) {
+    ResultSequenceJob failing_job("single-attempt-job", 1, [](int) {
+        return ExecResult{Job_Status::FAILED};
+    });
+
+    Scheduler scheduler(1);
+    scheduler.add_job(&failing_job, 1, 1);
+    scheduler.start();
+    scheduler.wait();
+
+    EXPECT_EQ(failing_job.execution_count(), 1);
+    const auto records = scheduler.history(failing_job.id());
+    ASSERT_EQ(records.size(), 1U);
+    EXPECT_EQ(records[0].attempt, 1);
+    EXPECT_EQ(records[0].status, Job_Status::FAILED);
+}
+
+TEST(Scheduler, AttemptNumbersAreUniqueAcrossRepeatedRetries) {
+    for (int iteration = 0; iteration < 50; ++iteration) {
+        ResultSequenceJob retrying_job(
+            "numbered-job-" + std::to_string(iteration),
+            3,
+            [](int attempt) {
+                return attempt < 2
+                    ? ExecResult{Job_Status::FAILED}
+                    : ExecResult{Job_Status::SUCCESS};
+            });
+        Scheduler scheduler(2);
+        scheduler.add_job(&retrying_job, 1, 1);
+        scheduler.start();
+        scheduler.wait();
+
+        const auto records = scheduler.history(retrying_job.id());
+        ASSERT_EQ(records.size(), 3U);
+        for (std::size_t i = 0; i < records.size(); ++i) {
+            EXPECT_EQ(records[i].attempt, static_cast<int>(i + 1));
+        }
+    }
+}
+
+TEST(Scheduler, AddJobRejectsInvalidMaximumAttempts) {
+    StubJob invalid_job("invalid-attempt-count", 0);
+    Scheduler scheduler(1);
+
+    EXPECT_THROW(scheduler.add_job(&invalid_job, 1, 1), std::invalid_argument);
 }
 
 TEST(Scheduler, WaitCompletesForAllSuccessAndAllFailureRuns) {
@@ -305,7 +448,7 @@ TEST(ThreadPool, ThrowingJobPreservesExceptionMessageInResult) {
     ExecResult observed_result{Job_Status::PENDING};
     bool callback_invoked = false;
     {
-        ThreadPool pool(1, [&](const std::string&, const ExecResult& result) {
+        ThreadPool pool(1, [&](const std::string&, const ExecResult& result, const JobRun&) {
             observed_result = result;
             callback_invoked = true;
             return FinishedJobs{};
@@ -324,7 +467,7 @@ TEST(Scheduler, CallbackExceptionsDoNotTerminateWorkerThreads) {
     StubJob second_job("callback-exception-job-2", 1);
     int callback_count = 0;
     {
-        ThreadPool pool(1, [&](const std::string&, const ExecResult&) -> FinishedJobs {
+        ThreadPool pool(1, [&](const std::string&, const ExecResult&, const JobRun&) -> FinishedJobs {
             ++callback_count;
             throw std::runtime_error("expected callback exception");
         });

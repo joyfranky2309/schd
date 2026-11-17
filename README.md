@@ -8,10 +8,10 @@ pool.
 
 ## Current milestone
 
-This repository is currently on milestone M0: build hygiene and test harness.
-The project is split into a reusable core library (`schd_core`), a small
-placeholder CLI (`schd`), and a GoogleTest suite (`schd_tests`). The old
-ad-hoc checks have been preserved as GTest cases and are run via CTest.
+The scheduler supports dependency-aware execution, permanent-failure skipping,
+immediate retries, and per-attempt run history. The project is split into a
+reusable core library (`schd_core`), a small placeholder CLI (`schd`), and a
+GoogleTest suite (`schd_tests`).
 
 ## Build and test
 
@@ -55,7 +55,5 @@ M4.
 
 - Job pointers are non-owning; callers must keep them alive for the scheduler's
   lifetime.
-- The current setup is still the M0 scaffolding; the CLI, loader, job-file
-  validation, and richer result handling are not in place yet.
-- Failed jobs still cause dependent jobs to be skipped, but the run history and
-  retry machinery have not been implemented yet.
+- Retries happen immediately without a backoff delay.
+- The CLI, loader, and job-file validation are not in place yet.

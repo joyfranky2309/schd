@@ -10,6 +10,7 @@ public:
 
     const std::string& job_id() const noexcept;
     Job_Status status() const noexcept;
+    const std::optional<std::chrono::system_clock::time_point>& queued_time() const noexcept;
     const std::optional<std::chrono::system_clock::time_point>& start_time() const noexcept;
     const std::optional<std::chrono::system_clock::time_point>& end_time() const noexcept;
 
@@ -18,6 +19,7 @@ public:
 private:
     std::string job_id_;
     Job_Status status_;
+    std::optional<std::chrono::system_clock::time_point> queued_time_;
     std::optional<std::chrono::system_clock::time_point> start_time_;
     std::optional<std::chrono::system_clock::time_point> end_time_;
 };
