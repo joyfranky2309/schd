@@ -9,9 +9,9 @@ pool.
 ## Current milestone
 
 The scheduler supports dependency-aware execution, permanent-failure skipping,
-immediate retries, and per-attempt run history. The project is split into a
-reusable core library (`schd_core`), a small placeholder CLI (`schd`), and a
-GoogleTest suite (`schd_tests`).
+immediate retries, and per-attempt run history. The `schd` CLI loads JSON job
+files and runs shell jobs, while the reusable core library (`schd_core`) and
+GoogleTest suite (`schd_tests`) remain independently buildable.
 
 ## Build and test
 
@@ -41,19 +41,33 @@ ctest --test-dir build-asan --output-on-failure
 
 `SCHD_ASAN` and `SCHD_TSAN` are mutually exclusive.
 
-## Placeholder CLI
+## CLI
 
-The current CLI is intentionally minimal while the scheduler core is being
-stabilized; it prints usage and will be replaced by the real job-file runner in
-M4.
+Run a job file or validate its dependency graph without executing it:
 
 ```sh
-./build/schd
+./build/schd run jobs.json
+./build/schd run jobs.json --workers 4
+./build/schd validate jobs.json
 ```
 
-## Current limitations
+Example job file:
+
+```json
+{
+  "workers": 7,
+  "jobs": [
+    { "id": "extract", "type": "shell", "command": "echo extract", "category": "EOD", "max_attempts": 3 },
+    { "id": "load", "type": "shell", "command": "echo load", "category": "EOD", "depends_on": ["extract"] }
+  ]
+}
+```
+
+## Limitations
 
 - Job pointers are non-owning; callers must keep them alive for the scheduler's
   lifetime.
 - Retries happen immediately without a backoff delay.
-- The CLI, loader, and job-file validation are not in place yet.
+- Shell jobs have no timeout, and standard output is inherited.
+- Run history is in memory only; there is no persistence, REST API, or
+  cron/calendar trigger.

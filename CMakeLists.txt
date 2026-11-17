@@ -21,8 +21,15 @@ FetchContent_Declare(
   URL https://github.com/google/googletest/archive/refs/tags/v1.14.0.zip
   DOWNLOAD_EXTRACT_TIMESTAMP TRUE
 )
+FetchContent_Declare(
+  nlohmann_json
+  URL https://github.com/nlohmann/json/archive/refs/tags/v3.11.3.zip
+  DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+)
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+set(JSON_BuildTests OFF CACHE INTERNAL "")
 FetchContent_MakeAvailable(googletest)
+FetchContent_MakeAvailable(nlohmann_json)
 include(GoogleTest)
 
 enable_testing()
@@ -32,10 +39,12 @@ add_library(schd_core
   src/job_run.cpp
   src/stub_job.cpp
   src/failing_stub_job.cpp
+  src/shell_job.cpp
+  src/job_loader.cpp
 )
 target_include_directories(schd_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_compile_options(schd_core PRIVATE -Wall -Wextra -Wpedantic)
-target_link_libraries(schd_core PUBLIC Threads::Threads)
+target_link_libraries(schd_core PUBLIC Threads::Threads PRIVATE nlohmann_json::nlohmann_json)
 
 add_executable(schd src/main.cpp)
 target_link_libraries(schd PRIVATE schd_core)
@@ -45,6 +54,8 @@ file(GLOB TEST_SOURCES CONFIGURE_DEPENDS "tests/*.cpp")
 add_executable(schd_tests ${TEST_SOURCES})
 target_link_libraries(schd_tests PRIVATE schd_core GTest::gtest_main)
 target_compile_options(schd_tests PRIVATE -Wall -Wextra -Wpedantic)
+add_dependencies(schd_tests schd)
+target_compile_definitions(schd_tests PRIVATE SCHD_CLI_PATH="$<TARGET_FILE:schd>")
 
 if(SCHD_ASAN)
   foreach(target schd_core schd schd_tests)

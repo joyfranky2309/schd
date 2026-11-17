@@ -197,9 +197,20 @@ public:
     ThreadPool(size_t num_threads, FinishedCallback on_finished)
         : on_finished_(std::move(on_finished))
     {
-        for (size_t i = 0; i < num_threads; ++i)
-        {
-            threads.emplace_back(&ThreadPool::worker_loop, this);
+        try {
+            for (size_t i = 0; i < num_threads; ++i) {
+                threads.emplace_back(&ThreadPool::worker_loop, this);
+            }
+        } catch (...) {
+            {
+                std::lock_guard<std::mutex> lock(queue_mutex_);
+                stopping = true;
+            }
+            cv.notify_all();
+            for (auto& thread : threads) {
+                thread.join();
+            }
+            throw;
         }
     }
 
