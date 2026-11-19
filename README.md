@@ -41,6 +41,20 @@ ctest --test-dir build-asan --output-on-failure
 
 `SCHD_ASAN` and `SCHD_TSAN` are mutually exclusive.
 
+The optional QuantLib build switch is present for M5:
+
+```sh
+cmake -S . -B build-quantlib \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DSCHD_WITH_QUANTLIB=ON \
+  -DCMAKE_TOOLCHAIN_FILE=$HOME/projects/vcpkg/scripts/buildsystems/vcpkg.cmake
+```
+
+QuantLib is not available in the current build environment. M5 therefore ships
+a `cpu_pricing` job as a pricing-style CPU workload. It is deterministic
+Monte-Carlo present-value loop written in plain C++; it is not a QuantLib bond
+pricer and does not provide a market-accurate bond price.
+
 ## CLI
 
 Run a job file or validate its dependency graph without executing it:
@@ -63,6 +77,27 @@ Example job file:
 }
 ```
 
+Pricing-style CPU job example:
+
+```json
+{
+  "jobs": [
+    {
+      "id": "cpu-price",
+      "type": "cpu_pricing",
+      "category": "EOD",
+      "params": {
+        "face_value": 100.0,
+        "coupon_rate": 0.05,
+        "maturity_years": 5,
+        "yield": 0.05,
+        "settlement_date": "2024-01-02"
+      }
+    }
+  ]
+}
+```
+
 ## Limitations
 
 - Job pointers are non-owning; callers must keep them alive for the scheduler's
@@ -71,3 +106,5 @@ Example job file:
 - Shell jobs have no timeout, and standard output is inherited.
 - Run history is in memory only; there is no persistence, REST API, or
   cron/calendar trigger.
+- M5 uses a deterministic plain-C++ pricing workload fallback; QuantLib
+  integration is not claimed until its package is available.

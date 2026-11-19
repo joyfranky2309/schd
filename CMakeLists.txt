@@ -8,12 +8,16 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 option(SCHD_ASAN "Build with ASan + UBSan" OFF)
 option(SCHD_TSAN "Build with ThreadSanitizer" OFF)
+option(SCHD_WITH_QUANTLIB "Enable the optional QuantLib bond job" OFF)
 
 if(SCHD_ASAN AND SCHD_TSAN)
   message(FATAL_ERROR "SCHD_ASAN and SCHD_TSAN cannot be enabled together")
 endif()
 
 find_package(Threads REQUIRED)
+if(SCHD_WITH_QUANTLIB)
+  find_package(QuantLib CONFIG REQUIRED)
+endif()
 include(FetchContent)
 
 FetchContent_Declare(
@@ -40,11 +44,15 @@ add_library(schd_core
   src/stub_job.cpp
   src/failing_stub_job.cpp
   src/shell_job.cpp
+  src/cpu_pricing_job.cpp
   src/job_loader.cpp
 )
 target_include_directories(schd_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_compile_options(schd_core PRIVATE -Wall -Wextra -Wpedantic)
 target_link_libraries(schd_core PUBLIC Threads::Threads PRIVATE nlohmann_json::nlohmann_json)
+if(SCHD_WITH_QUANTLIB)
+  target_link_libraries(schd_core PUBLIC QuantLib::QuantLib)
+endif()
 
 add_executable(schd src/main.cpp)
 target_link_libraries(schd PRIVATE schd_core)

@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <fstream>
 #include <limits>
+#include <cmath>
 #include <stdexcept>
 #include <string>
 #include <unordered_set>
@@ -11,13 +12,20 @@
 #include <nlohmann/json.hpp>
 
 #include "shell_job.hpp"
+#include "cpu_pricing_job.hpp"
 
 namespace {
 using Json = nlohmann::json;
 
 struct ParsedJob {
     std::string id;
+    std::string type;
     std::string command;
+    std::string settlement_date;
+    double face_value{100.0};
+    double coupon_rate{0.0};
+    int maturity_years{1};
+    double yield{0.0};
     int category;
     int priority;
     int max_attempts;
@@ -72,6 +80,18 @@ int optional_integer(
         job_error(id, std::string("'") + field + "' is outside the supported range");
     }
     return static_cast<int>(number);
+}
+
+double required_number(const Json& value, const char* field, const std::string& id) {
+    const auto it = value.find(field);
+    if (it == value.end() || !it->is_number()) {
+        job_error(id, std::string("'params.") + field + "' must be a number");
+    }
+    const double number = it->get<double>();
+    if (!std::isfinite(number)) {
+        job_error(id, std::string("'params.") + field + "' must be finite");
+    }
+    return number;
 }
 
 std::size_t workers_value(const Json& value) {
@@ -143,11 +163,48 @@ LoadedJobFile load_job_file(const std::filesystem::path& path) {
         }
 
         const std::string type = required_string(value, "type", actual_id);
-        if (type != "shell") {
+        if (type != "shell" && type != "cpu_pricing") {
             job_error(actual_id, "unknown job type '" + type + "'");
         }
 
-        const std::string command = required_string(value, "command", actual_id);
+        std::string command;
+        if (type == "shell") {
+            command = required_string(value, "command", actual_id);
+        }
+
+        std::string settlement_date = "2024-01-02";
+        double face_value = 100.0;
+        double coupon_rate = 0.0;
+        int maturity_years = 1;
+        double yield = 0.0;
+        if (type == "cpu_pricing") {
+            const auto params_it = value.find("params");
+            if (params_it == value.end() || !params_it->is_object()) {
+                job_error(actual_id, "'params' must be an object");
+            }
+            face_value = required_number(*params_it, "face_value", actual_id);
+            coupon_rate = required_number(*params_it, "coupon_rate", actual_id);
+            if (!params_it->contains("maturity_years") ||
+                !(*params_it)["maturity_years"].is_number_integer()) {
+                job_error(actual_id, "'params.maturity_years' must be an integer");
+            }
+            maturity_years = optional_integer(
+                *params_it, "maturity_years", 1, actual_id);
+            yield = required_number(*params_it, "yield", actual_id);
+            if (face_value <= 0.0) {
+                job_error(actual_id, "'params.face_value' must be positive");
+            }
+            if (maturity_years < 1) {
+                job_error(actual_id, "'params.maturity_years' must be at least 1");
+            }
+            const auto settlement_it = params_it->find("settlement_date");
+            if (settlement_it != params_it->end()) {
+                if (!settlement_it->is_string()) {
+                    job_error(actual_id, "'params.settlement_date' must be a string");
+                }
+                settlement_date = settlement_it->get<std::string>();
+            }
+        }
         const std::string category_name = required_string(value, "category", actual_id);
         int category = 0;
         if (category_name == "EOD") {
@@ -181,7 +238,13 @@ LoadedJobFile load_job_file(const std::filesystem::path& path) {
 
         parsed_jobs.push_back(ParsedJob{
             actual_id,
+            type,
             command,
+            settlement_date,
+            face_value,
+            coupon_rate,
+            maturity_years,
+            yield,
             category,
             priority,
             max_attempts,
@@ -203,8 +266,20 @@ LoadedJobFile load_job_file(const std::filesystem::path& path) {
     loaded.jobs.reserve(parsed_jobs.size());
     loaded.registrations.reserve(parsed_jobs.size());
     for (const auto& parsed_job : parsed_jobs) {
-        auto job = std::make_unique<ShellJob>(
-            parsed_job.id, parsed_job.command, parsed_job.max_attempts);
+        std::unique_ptr<Job> job;
+        if (parsed_job.type == "shell") {
+            job = std::make_unique<ShellJob>(
+                parsed_job.id, parsed_job.command, parsed_job.max_attempts);
+        } else {
+            job = std::make_unique<CpuPricingJob>(
+                parsed_job.id,
+                parsed_job.face_value,
+                parsed_job.coupon_rate,
+                parsed_job.maturity_years,
+                parsed_job.yield,
+                parsed_job.settlement_date,
+                parsed_job.max_attempts);
+        }
         loaded.registrations.push_back(JobRegistration{
             job.get(),
             parsed_job.category,
