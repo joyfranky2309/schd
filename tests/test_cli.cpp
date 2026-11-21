@@ -183,3 +183,31 @@ TEST(Cli, VerboseRunPrintsCpuPricingMessage) {
     EXPECT_EQ(result.exit_code, 0);
     EXPECT_NE(result.output.find("cpu-price: price="), std::string::npos);
 }
+
+#ifdef SCHD_WITH_QUANTLIB
+TEST(Cli, VerboseRunPrintsQuantLibBondMessage) {
+    TemporaryFile input(
+        "quantlib-input.json",
+        R"json({
+            "jobs": [{
+                "id": "bond-price",
+                "type": "quantlib_bond",
+                "category": "EOD",
+                "params": {
+                    "face_value": 100,
+                    "coupon_rate": 0.05,
+                    "maturity_years": 5,
+                    "yield": 0.05,
+                    "settlement_date": "2024-01-02"
+                }
+            }]
+        })json");
+    TemporaryFile output("quantlib-output.txt", "");
+
+    const auto result = run_cli(input.path(), output.path(), true);
+
+    EXPECT_EQ(result.exit_code, 0);
+    EXPECT_NE(result.output.find("bond-price: npv="), std::string::npos);
+    EXPECT_NE(result.output.find("clean_price="), std::string::npos);
+}
+#endif

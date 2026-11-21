@@ -6,10 +6,10 @@
 - `src/job_loader.cpp` — validates shared pricing parameters and conditionally loads `quantlib_bond`.
 - `src/main.cpp` — adds opt-in final-history messages after the existing run table.
 - `src/quantlib_bond_job.hpp/.cpp` — adds the optional QuantLib fixed-rate bond implementation.
-- `tests/test_cli.cpp` — checks verbose pricing output.
+- `tests/test_cli.cpp` — checks verbose CPU and QuantLib pricing output.
 - `tests/test_cpu_pricing_job.cpp` — checks par pricing, yield monotonicity, and deterministic messages.
 - `tests/test_job_loader.cpp` — checks pricing parameter/date validation and feature gating.
-- `tests/test_quantlib_bond_job.cpp` — checks QuantLib pricing, date restoration, and concurrent scheduling.
+- `tests/test_quantlib_bond_job.cpp` — checks QuantLib pricing, date restoration, and per-job results under concurrent scheduling.
 
 ## 2. Functions added or changed
 - `CpuPricingJob::execute()` repeats deterministic present-value calculations and reports `price`, `samples`, and `settlement_date`.
@@ -35,7 +35,8 @@
 ## 5. Assumptions
 - `cpu_pricing` is a synthetic CPU-bound workload, not Monte Carlo pricing or a QuantLib pricer.
 - Pricing parameters use `face_value > 0`, rates in `[0, 1]`, maturity years in `[1, 100]`, and a real optional settlement date; the default is `2024-01-02`.
-- QuantLib is optional and can be found as a CMake config package or through system headers and library.
+- QuantLib is optional and can be found as a CMake config package or through system headers and library; the tested system package is 1.41-2.
+- `QL_ENABLE_SESSIONS` is not defined by the installed QuantLib configuration, so no `QuantLib::sessionId()` implementation is needed.
 - Validation completed in Release, ASan/UBSan, and TSan with QuantLib both disabled and enabled; the different-date 4-worker QuantLib test also passed 20 repeated TSan runs.
 
 ## 6. Three review questions

@@ -18,13 +18,26 @@ find_package(Threads REQUIRED)
 if(SCHD_WITH_QUANTLIB)
   find_package(QuantLib CONFIG QUIET)
   if(NOT TARGET QuantLib::QuantLib)
-    find_path(QUANTLIB_INCLUDE_DIR NAMES ql/quantlib.hpp REQUIRED)
-    find_library(QUANTLIB_LIBRARY NAMES QuantLib REQUIRED)
-    add_library(QuantLib::QuantLib UNKNOWN IMPORTED)
-    set_target_properties(QuantLib::QuantLib PROPERTIES
-      IMPORTED_LOCATION "${QUANTLIB_LIBRARY}"
-      INTERFACE_INCLUDE_DIRECTORIES "${QUANTLIB_INCLUDE_DIR}"
+    find_path(QL_INCLUDE_DIR ql/quantlib.hpp)
+    find_library(QL_LIBRARY NAMES QuantLib)
+    if(NOT QL_INCLUDE_DIR OR NOT QL_LIBRARY)
+      message(FATAL_ERROR
+        "SCHD_WITH_QUANTLIB=ON requires QuantLib headers (ql/quantlib.hpp) "
+        "and the QuantLib library")
+    endif()
+    if(POLICY CMP0167)
+      cmake_policy(SET CMP0167 NEW)
+    endif()
+    find_package(Boost REQUIRED)
+    add_library(schd_quantlib UNKNOWN IMPORTED)
+    set_target_properties(schd_quantlib PROPERTIES
+      IMPORTED_LOCATION "${QL_LIBRARY}"
+      INTERFACE_INCLUDE_DIRECTORIES "${QL_INCLUDE_DIR};${Boost_INCLUDE_DIRS}"
+      INTERFACE_SYSTEM_INCLUDE_DIRECTORIES "${QL_INCLUDE_DIR};${Boost_INCLUDE_DIRS}"
     )
+    set(SCHD_QUANTLIB_TARGET schd_quantlib)
+  else()
+    set(SCHD_QUANTLIB_TARGET QuantLib::QuantLib)
   endif()
 endif()
 include(FetchContent)
@@ -64,7 +77,7 @@ target_include_directories(schd_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_compile_options(schd_core PRIVATE -Wall -Wextra -Wpedantic)
 target_link_libraries(schd_core PUBLIC Threads::Threads PRIVATE nlohmann_json::nlohmann_json)
 if(SCHD_WITH_QUANTLIB)
-  target_link_libraries(schd_core PUBLIC QuantLib::QuantLib)
+  target_link_libraries(schd_core PUBLIC ${SCHD_QUANTLIB_TARGET})
 endif()
 
 add_executable(schd src/main.cpp)

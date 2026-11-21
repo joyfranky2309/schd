@@ -28,12 +28,13 @@ double reported_value(const std::string& message, const std::string& field) {
 
 TEST(QuantLibBondJob, ParCouponPricesNearPar) {
     QuantLibBondJob job(
-        "par-bond", 100.0, 0.05, 5, 0.05, "2024-01-02", 1);
+        "par-bond", 1000.0, 0.05, 5, 0.05, "2024-01-02", 1);
 
     const ExecResult result = job.execute();
 
     ASSERT_EQ(result.status, Job_Status::SUCCESS) << result.message;
     EXPECT_NEAR(reported_value(result.message, "clean_price"), 100.0, 0.5);
+    EXPECT_NEAR(reported_value(result.message, "npv"), 1000.0, 5.0);
     EXPECT_NE(result.message.find("npv="), std::string::npos);
     EXPECT_NE(result.message.find("dirty_price="), std::string::npos);
     EXPECT_NE(result.message.find("accrued="), std::string::npos);
@@ -72,7 +73,9 @@ TEST(QuantLibBondJob, RestoresPreviousEvaluationDate) {
 
 TEST(QuantLibBondJob, DifferentSettlementDatesAreSafeAcrossWorkers) {
     std::vector<std::unique_ptr<QuantLibBondJob>> jobs;
+    std::vector<std::string> settlement_dates;
     jobs.reserve(8);
+    settlement_dates.reserve(8);
     Scheduler scheduler(4);
     for (int day = 2; day < 10; ++day) {
         const std::string id = "bond-" + std::to_string(day);
@@ -81,14 +84,22 @@ TEST(QuantLibBondJob, DifferentSettlementDatesAreSafeAcrossWorkers) {
         jobs.push_back(std::make_unique<QuantLibBondJob>(
             id, 100.0, 0.05, 5, 0.04, date, 1));
         scheduler.add_job(jobs.back().get(), 1, 1);
+        settlement_dates.push_back(date);
     }
 
     scheduler.start();
     scheduler.wait();
 
-    for (const auto& job : jobs) {
+    for (std::size_t index = 0; index < jobs.size(); ++index) {
+        const auto& job = jobs[index];
         EXPECT_EQ(scheduler.final_status(job->id()), Job_Status::SUCCESS)
             << job->id();
+        const auto history = scheduler.history(job->id());
+        ASSERT_EQ(history.size(), 1U);
+        EXPECT_NE(
+            history.front().message.find(
+                "settlement_date=" + settlement_dates[index]),
+            std::string::npos);
     }
 }
 

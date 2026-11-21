@@ -1,5 +1,6 @@
 #include "quantlib_bond_job.hpp"
 
+#include <exception>
 #include <iomanip>
 #include <mutex>
 #include <sstream>
@@ -67,8 +68,8 @@ ExecResult QuantLibBondJob::execute() {
             maturity_date,
             QuantLib::Period(QuantLib::Annual),
             QuantLib::NullCalendar(),
-            QuantLib::Unadjusted,
-            QuantLib::Unadjusted,
+            QuantLib::Following,
+            QuantLib::Following,
             QuantLib::DateGeneration::Backward,
             false);
         const QuantLib::DayCounter day_counter =
@@ -79,8 +80,8 @@ ExecResult QuantLibBondJob::execute() {
             schedule,
             std::vector<QuantLib::Rate>{coupon_rate_},
             day_counter,
-            QuantLib::Unadjusted,
-            face_value_,
+            QuantLib::Following,
+            100.0,
             settlement_date);
         const auto yield_curve = QuantLib::ext::make_shared<QuantLib::FlatForward>(
             settlement_date,
@@ -103,6 +104,8 @@ ExecResult QuantLibBondJob::execute() {
                 << "; settlement_date=" << settlement_date_;
         return ExecResult{Job_Status::SUCCESS, 0, message.str()};
     } catch (const QuantLib::Error& error) {
+        return ExecResult{Job_Status::FAILED, -1, error.what()};
+    } catch (const std::exception& error) {
         return ExecResult{Job_Status::FAILED, -1, error.what()};
     }
 }
