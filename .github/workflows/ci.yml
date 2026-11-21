@@ -16,6 +16,21 @@ jobs:
       - name: Test
         run: ctest --test-dir build --output-on-failure
 
+  quantlib:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install QuantLib
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libquantlib0-dev
+      - name: Configure
+        run: cmake -S . -B build-quantlib -DCMAKE_BUILD_TYPE=Release -DSCHD_WITH_QUANTLIB=ON
+      - name: Build
+        run: cmake --build build-quantlib --parallel
+      - name: Test
+        run: ctest --test-dir build-quantlib --output-on-failure
+
   tsan:
     runs-on: ubuntu-latest
     steps:

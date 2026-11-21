@@ -1,21 +1,23 @@
 ## 1. Files changed
-- `CMakeLists.txt` — keeps the QuantLib build opt-in and accepts both config-package and system header/library installations.
-- `README.md` — documents `cpu_pricing`, `--verbose`, the optional QuantLib build, and a `quantlib_bond` job file.
-- `docs/BLOCKERS.md` — records the WSL memory issue accurately and the verified system-package installation.
+- `CMakeLists.txt` — keeps QuantLib opt-in and accepts config-package or system header/library installations.
+- `.github/workflows/ci.yml` — installs the Ubuntu QuantLib package and builds/tests the optional integration.
+- `README.md` — documents `cpu_pricing`, `--verbose`, optional QuantLib builds, and issue-date behavior.
+- `docs/BLOCKERS.md` — records the resolved system-package blocker.
 - `src/cpu_pricing_job.cpp` — reports one deterministic present-value price.
-- `src/job_loader.cpp` — validates shared pricing parameters and conditionally loads `quantlib_bond`.
+- `src/job_loader.cpp` — validates shared pricing parameters/dates, derives issue date, and conditionally loads QuantLib jobs.
 - `src/main.cpp` — adds opt-in final-history messages after the existing run table.
-- `src/quantlib_bond_job.hpp/.cpp` — adds the optional QuantLib fixed-rate bond implementation.
-- `tests/test_cli.cpp` — checks verbose CPU and QuantLib pricing output.
+- `src/quantlib_bond_job.hpp/.cpp` — prices from issue date to maturity and reports the evaluation date read back from QuantLib.
+- `tests/test_cli.cpp` — covers verbose CPU and QuantLib output.
 - `tests/test_cpu_pricing_job.cpp` — checks par pricing, yield monotonicity, and deterministic messages.
-- `tests/test_job_loader.cpp` — checks pricing parameter/date validation and feature gating.
-- `tests/test_quantlib_bond_job.cpp` — checks QuantLib pricing, date restoration, and per-job results under concurrent scheduling.
+- `tests/test_job_loader.cpp` — covers pricing validation, issue-date behavior, and feature gating.
+- `tests/test_quantlib_bond_job.cpp` — checks pricing, accrued interest, date restoration, and concurrent evaluation-date results.
 
 ## 2. Functions added or changed
 - `CpuPricingJob::execute()` repeats deterministic present-value calculations and reports `price`, `samples`, and `settlement_date`.
-- `is_valid_settlement_date()` checks strict `YYYY-MM-DD` syntax and calendar validity.
-- `load_job_file()` validates the pricing ranges and constructs `QuantLibBondJob` only in enabled builds.
-- `QuantLibBondJob::execute()` sets an evaluation date, prices an annual-coupon `FixedRateBond` against a flat curve, reports NPV/clean/dirty/accrued values, and restores the previous date.
+- `parse_calendar_date()` validates real dates in strict `YYYY-MM-DD` form for settlement and issue dates.
+- `default_issue_date()` derives the date three calendar months before settlement, clamping to the prior month's last day when needed.
+- `load_job_file()` requires an explicit issue date to precede settlement and supplies the derived default when it is omitted.
+- `QuantLibBondJob::execute()` builds the annual-coupon schedule from issue date through issue-date-plus-maturity, prices it, and includes the evaluation date read back under the QuantLib lock.
 - `run_command()` prints each job's final history message only when `--verbose` is set.
 
 ## 3. Invariants
@@ -23,23 +25,24 @@
 - I2 — Completion callbacks continue returning ready jobs to the pool without calling its public methods.
 - I3 — Job execution remains outside `queue_mutex_`; the QuantLib mutex does not change this.
 - I4 — Queue notifications and lock ordering are unchanged.
-- I5 — QuantLib errors become FAILED results with their error text; other job exceptions retain the existing worker handling.
-- I6 — Callback-touched `Scheduler` members and the pool declaration order are unchanged.
+- I5 — QuantLib and standard exceptions become FAILED results with their error text; other job exceptions retain existing worker handling.
+- I6 — Callback-touched `Scheduler` members and pool declaration order are unchanged.
 - I7 — The loaded job file continues owning job objects for the lifetime of the scheduler.
 
 ## 4. Locking map
-- A static mutex in `quantlib_bond_job.cpp` serializes the whole QuantLib pricing section because `Settings::evaluationDate()` is process-global.
-- An RAII guard restores the prior evaluation date before releasing that mutex.
-- The new mutex is independent of the thread pool's `queue_mutex_`; no scheduler or DAG locking changed.
+- A static mutex in `quantlib_bond_job.cpp` serializes each pricing section because QuantLib's evaluation date is process-global.
+- An RAII guard restores the previous evaluation date before releasing the mutex; the message records the date read back while protected.
+- The mutex is independent of the thread pool's `queue_mutex_`; no scheduler or DAG locking changed.
 
 ## 5. Assumptions
-- `cpu_pricing` is a synthetic CPU-bound workload, not Monte Carlo pricing or a QuantLib pricer.
+- `issue_date` is optional, strictly precedes settlement, and defaults to three calendar months earlier; month-end defaults clamp to the last valid calendar day.
+- `cpu_pricing` remains a synthetic CPU-bound workload, not Monte Carlo pricing or a QuantLib pricer.
 - Pricing parameters use `face_value > 0`, rates in `[0, 1]`, maturity years in `[1, 100]`, and a real optional settlement date; the default is `2024-01-02`.
-- QuantLib is optional and can be found as a CMake config package or through system headers and library; the tested system package is 1.41-2.
-- `QL_ENABLE_SESSIONS` is not defined by the installed QuantLib configuration, so no `QuantLib::sessionId()` implementation is needed.
-- Validation completed in Release, ASan/UBSan, and TSan with QuantLib both disabled and enabled; the different-date 4-worker QuantLib test also passed 20 repeated TSan runs.
+- QuantLib remains opt-in; it can be found as a config package or through system headers and library. CI installs `libquantlib0-dev` and tests an enabled Release build.
+- All six local Release, ASan/UBSan, and TSan configurations passed: 46 tests per QuantLib-OFF configuration and 53 per QuantLib-ON configuration. The strengthened different-settlement-date TSan test also passed 20 repeated runs.
+- The installed QuantLib 1.41 configuration does not define `QL_ENABLE_SESSIONS`.
 
 ## 6. Three review questions
-- Why does `QuantLibBondJob` serialize pricing even though the scheduler already runs jobs on multiple workers?
+- Why must QuantLib pricing be serialized by a mutex even when jobs execute on separate workers?
+- How does the loader ensure a default or explicit issue date is a real date strictly before settlement?
 - How does verbose output select the final message after retries without changing the default table?
-- Which QuantLib-related code is absent from the default build?
