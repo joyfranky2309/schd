@@ -16,6 +16,9 @@
 
 #include "cpu_pricing_job.hpp"
 #include "shell_job.hpp"
+#ifdef SCHD_WITH_QUANTLIB
+#include "quantlib_bond_job.hpp"
+#endif
 
 namespace {
 using Json = nlohmann::json;
@@ -197,7 +200,13 @@ LoadedJobFile load_job_file(const std::filesystem::path& path) {
         }
 
         const std::string type = required_string(value, "type", actual_id);
-        if (type != "shell" && type != "cpu_pricing") {
+        if (type == "quantlib_bond") {
+#ifndef SCHD_WITH_QUANTLIB
+            throw std::runtime_error(
+                "job '" + actual_id +
+                "': type 'quantlib_bond' requires a build with SCHD_WITH_QUANTLIB");
+#endif
+        } else if (type != "shell" && type != "cpu_pricing") {
             job_error(actual_id, "unknown job type '" + type + "'");
         }
 
@@ -211,7 +220,7 @@ LoadedJobFile load_job_file(const std::filesystem::path& path) {
         double coupon_rate = 0.0;
         int maturity_years = 1;
         double yield = 0.0;
-        if (type == "cpu_pricing") {
+        if (type == "cpu_pricing" || type == "quantlib_bond") {
             const auto params_it = value.find("params");
             if (params_it == value.end() || !params_it->is_object()) {
                 job_error(actual_id, "'params' must be an object");
@@ -315,7 +324,7 @@ LoadedJobFile load_job_file(const std::filesystem::path& path) {
         if (parsed_job.type == "shell") {
             job = std::make_unique<ShellJob>(
                 parsed_job.id, parsed_job.command, parsed_job.max_attempts);
-        } else {
+        } else if (parsed_job.type == "cpu_pricing") {
             job = std::make_unique<CpuPricingJob>(
                 parsed_job.id,
                 parsed_job.face_value,
@@ -324,6 +333,17 @@ LoadedJobFile load_job_file(const std::filesystem::path& path) {
                 parsed_job.yield,
                 parsed_job.settlement_date,
                 parsed_job.max_attempts);
+#ifdef SCHD_WITH_QUANTLIB
+        } else {
+            job = std::make_unique<QuantLibBondJob>(
+                parsed_job.id,
+                parsed_job.face_value,
+                parsed_job.coupon_rate,
+                parsed_job.maturity_years,
+                parsed_job.yield,
+                parsed_job.settlement_date,
+                parsed_job.max_attempts);
+#endif
         }
         loaded.registrations.push_back(JobRegistration{
             job.get(),

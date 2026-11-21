@@ -219,3 +219,35 @@ TEST(JobLoader, CpuPricingDefaultsSettlementDate) {
 
     EXPECT_NE(result.message.find("settlement_date=2024-01-02"), std::string::npos);
 }
+
+TEST(JobLoader, QuantLibBondRequiresEnabledBuild) {
+    TemporaryJsonFile file(R"json({
+        "jobs": [{
+            "id": "quantlib-job",
+            "type": "quantlib_bond",
+            "category": "EOD",
+            "params": {
+                "face_value": 100,
+                "coupon_rate": 0.05,
+                "maturity_years": 5,
+                "yield": 0.05,
+                "settlement_date": "2024-01-02"
+            }
+        }]
+    })json");
+
+#ifdef SCHD_WITH_QUANTLIB
+    const auto loaded = load_job_file(file.path());
+    ASSERT_EQ(loaded.jobs.size(), 1U);
+    EXPECT_EQ(loaded.jobs.front()->execute().status, Job_Status::SUCCESS);
+#else
+    try {
+        static_cast<void>(load_job_file(file.path()));
+        FAIL() << "Expected quantlib_bond to require an enabled build";
+    } catch (const std::runtime_error& error) {
+        EXPECT_EQ(
+            std::string(error.what()),
+            "job 'quantlib-job': type 'quantlib_bond' requires a build with SCHD_WITH_QUANTLIB");
+    }
+#endif
+}

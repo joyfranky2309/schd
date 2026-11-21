@@ -41,19 +41,28 @@ ctest --test-dir build-asan --output-on-failure
 
 `SCHD_ASAN` and `SCHD_TSAN` are mutually exclusive.
 
-The optional QuantLib build switch is present for M5:
+`QuantLibBondJob` is optional and is compiled only when `SCHD_WITH_QUANTLIB=ON`.
+Install QuantLib with the system package or vcpkg, then configure, build, and
+test it:
 
 ```sh
+sudo apt install libquantlib0-dev
 cmake -S . -B build-quantlib \
   -DCMAKE_BUILD_TYPE=Release \
-  -DSCHD_WITH_QUANTLIB=ON \
-  -DCMAKE_TOOLCHAIN_FILE=$HOME/projects/vcpkg/scripts/buildsystems/vcpkg.cmake
+  -DSCHD_WITH_QUANTLIB=ON
+cmake --build build-quantlib
+ctest --test-dir build-quantlib --output-on-failure
 ```
 
-QuantLib is not available in the current build environment. M5 therefore ships
-a `cpu_pricing` job as a synthetic CPU-bound pricing workload written in plain
-C++. It repeats deterministic present-value calculations; it is not Monte
-Carlo pricing and is not a QuantLib bond pricer.
+For a vcpkg installation, add
+`-DCMAKE_TOOLCHAIN_FILE=$HOME/projects/vcpkg/scripts/buildsystems/vcpkg.cmake`
+to the configure command. CMake accepts both a QuantLib config package and
+system installations that provide the QuantLib headers and library.
+
+The `quantlib_bond` job prices a fixed-rate bond with annual coupons, a
+Thirty360 day counter, a flat yield curve, and a discounting bond engine.
+QuantLib's process-wide evaluation date is serialized across these jobs and
+restored after each execution.
 
 ## CLI
 
@@ -86,6 +95,27 @@ Pricing-style CPU job example:
     {
       "id": "cpu-price",
       "type": "cpu_pricing",
+      "category": "EOD",
+      "params": {
+        "face_value": 100.0,
+        "coupon_rate": 0.05,
+        "maturity_years": 5,
+        "yield": 0.05,
+        "settlement_date": "2024-01-02"
+      }
+    }
+  ]
+}
+```
+
+QuantLib bond job example:
+
+```json
+{
+  "jobs": [
+    {
+      "id": "bond-price",
+      "type": "quantlib_bond",
       "category": "EOD",
       "params": {
         "face_value": 100.0,

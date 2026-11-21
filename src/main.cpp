@@ -108,10 +108,8 @@ int run_command(
     if (verbose) {
         for (const auto& registration : job_file.registrations) {
             const auto records = scheduler.history(registration.job->id());
-            if (!records.empty()) {
-                std::cout << registration.job->id() << ": "
-                          << records.back().message << '\n';
-            }
+            std::cout << registration.job->id() << ": "
+                      << records.back().message << '\n';
         }
     }
     return all_succeeded ? 0 : 1;

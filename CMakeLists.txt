@@ -16,7 +16,16 @@ endif()
 
 find_package(Threads REQUIRED)
 if(SCHD_WITH_QUANTLIB)
-  find_package(QuantLib CONFIG REQUIRED)
+  find_package(QuantLib CONFIG QUIET)
+  if(NOT TARGET QuantLib::QuantLib)
+    find_path(QUANTLIB_INCLUDE_DIR NAMES ql/quantlib.hpp REQUIRED)
+    find_library(QUANTLIB_LIBRARY NAMES QuantLib REQUIRED)
+    add_library(QuantLib::QuantLib UNKNOWN IMPORTED)
+    set_target_properties(QuantLib::QuantLib PROPERTIES
+      IMPORTED_LOCATION "${QUANTLIB_LIBRARY}"
+      INTERFACE_INCLUDE_DIRECTORIES "${QUANTLIB_INCLUDE_DIR}"
+    )
+  endif()
 endif()
 include(FetchContent)
 
@@ -47,6 +56,10 @@ add_library(schd_core
   src/cpu_pricing_job.cpp
   src/job_loader.cpp
 )
+if(SCHD_WITH_QUANTLIB)
+  target_sources(schd_core PRIVATE src/quantlib_bond_job.cpp)
+  target_compile_definitions(schd_core PUBLIC SCHD_WITH_QUANTLIB=1)
+endif()
 target_include_directories(schd_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_compile_options(schd_core PRIVATE -Wall -Wextra -Wpedantic)
 target_link_libraries(schd_core PUBLIC Threads::Threads PRIVATE nlohmann_json::nlohmann_json)

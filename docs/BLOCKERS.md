@@ -1,8 +1,9 @@
-# M5 QuantLib integration blocker
+# M5 QuantLib dependency note
 
-The vcpkg `quantlib` port exists. The install had not completed on the owner's
-machine: its WSL environment ran out of memory while building QuantLib.
+The vcpkg `quantlib` port exists. The original install attempt on the owner's
+machine did not complete because its WSL environment ran out of memory while
+building QuantLib.
 
-This records an incomplete local dependency installation, not a missing vcpkg
-port. QuantLib integration should not be considered available until the
-dependency installation succeeds and the enabled build and tests pass.
+The dependency is now available through the system `libquantlib0-dev` package.
+The optional `SCHD_WITH_QUANTLIB=ON` build and its tests have been verified
+against that installation.
