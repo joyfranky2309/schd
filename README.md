@@ -122,12 +122,17 @@ QuantLib bond job example:
         "coupon_rate": 0.05,
         "maturity_years": 5,
         "yield": 0.05,
+        "issue_date": "2023-10-02",
         "settlement_date": "2024-01-02"
       }
     }
   ]
 }
 ```
+
+`issue_date` is optional and must be a real `YYYY-MM-DD` date before
+`settlement_date`; when omitted, it defaults to three calendar months before
+settlement.
 
 ## Limitations
 

@@ -41,6 +41,7 @@ QuantLibBondJob::QuantLibBondJob(
     double coupon_rate,
     int maturity_years,
     double yield,
+    std::string issue_date,
     std::string settlement_date,
     int max_attempts)
     : Job(std::move(id), max_attempts),
@@ -48,6 +49,7 @@ QuantLibBondJob::QuantLibBondJob(
       coupon_rate_(coupon_rate),
       maturity_years_(maturity_years),
       yield_(yield),
+      issue_date_(std::move(issue_date)),
       settlement_date_(std::move(settlement_date)) {}
 
 ExecResult QuantLibBondJob::execute() {
@@ -59,12 +61,16 @@ ExecResult QuantLibBondJob::execute() {
             std::stoi(settlement_date_.substr(8, 2)),
             static_cast<QuantLib::Month>(std::stoi(settlement_date_.substr(5, 2))),
             std::stoi(settlement_date_.substr(0, 4)));
+        const QuantLib::Date issue_date(
+            std::stoi(issue_date_.substr(8, 2)),
+            static_cast<QuantLib::Month>(std::stoi(issue_date_.substr(5, 2))),
+            std::stoi(issue_date_.substr(0, 4)));
         QuantLib::Settings::instance().evaluationDate() = settlement_date;
 
         const QuantLib::Date maturity_date =
-            settlement_date + QuantLib::Period(maturity_years_, QuantLib::Years);
+            issue_date + QuantLib::Period(maturity_years_, QuantLib::Years);
         const QuantLib::Schedule schedule(
-            settlement_date,
+            issue_date,
             maturity_date,
             QuantLib::Period(QuantLib::Annual),
             QuantLib::NullCalendar(),
@@ -82,7 +88,7 @@ ExecResult QuantLibBondJob::execute() {
             day_counter,
             QuantLib::Following,
             100.0,
-            settlement_date);
+            issue_date);
         const auto yield_curve = QuantLib::ext::make_shared<QuantLib::FlatForward>(
             settlement_date,
             yield_,
@@ -94,6 +100,16 @@ ExecResult QuantLibBondJob::execute() {
         bond.setPricingEngine(
             QuantLib::ext::make_shared<QuantLib::DiscountingBondEngine>(
                 yield_curve_handle));
+        const QuantLib::Date reported_evaluation_date(
+            QuantLib::Settings::instance().evaluationDate());
+        std::ostringstream evaluation_date_message;
+        evaluation_date_message << std::setfill('0')
+                                << std::setw(4) << reported_evaluation_date.year()
+                                << '-' << std::setw(2)
+                                << static_cast<unsigned int>(
+                                       reported_evaluation_date.month())
+                                << '-' << std::setw(2)
+                                << reported_evaluation_date.dayOfMonth();
 
         std::ostringstream message;
         message << std::setprecision(10)
@@ -101,7 +117,8 @@ ExecResult QuantLibBondJob::execute() {
                 << "; clean_price=" << bond.cleanPrice()
                 << "; dirty_price=" << bond.dirtyPrice()
                 << "; accrued=" << bond.accruedAmount()
-                << "; settlement_date=" << settlement_date_;
+                << "; settlement_date=" << settlement_date_
+                << "; evaluation_date=" << evaluation_date_message.str();
         return ExecResult{Job_Status::SUCCESS, 0, message.str()};
     } catch (const QuantLib::Error& error) {
         return ExecResult{Job_Status::FAILED, -1, error.what()};

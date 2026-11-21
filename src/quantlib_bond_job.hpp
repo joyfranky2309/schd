@@ -12,6 +12,7 @@ public:
         double coupon_rate,
         int maturity_years,
         double yield,
+        std::string issue_date,
         std::string settlement_date,
         int max_attempts);
 
@@ -22,5 +23,6 @@ private:
     double coupon_rate_;
     int maturity_years_;
     double yield_;
+    std::string issue_date_;
     std::string settlement_date_;
 };

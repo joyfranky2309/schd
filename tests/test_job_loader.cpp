@@ -239,7 +239,15 @@ TEST(JobLoader, QuantLibBondRequiresEnabledBuild) {
 #ifdef SCHD_WITH_QUANTLIB
     const auto loaded = load_job_file(file.path());
     ASSERT_EQ(loaded.jobs.size(), 1U);
-    EXPECT_EQ(loaded.jobs.front()->execute().status, Job_Status::SUCCESS);
+    const auto result = loaded.jobs.front()->execute();
+    ASSERT_EQ(result.status, Job_Status::SUCCESS) << result.message;
+    EXPECT_NE(
+        result.message.find("evaluation_date=2024-01-02"),
+        std::string::npos);
+    const std::size_t accrued_start = result.message.find("accrued=");
+    ASSERT_NE(accrued_start, std::string::npos);
+    const std::size_t accrued_value_start = accrued_start + std::string("accrued=").size();
+    EXPECT_GT(std::stod(result.message.substr(accrued_value_start)), 0.0);
 #else
     try {
         static_cast<void>(load_job_file(file.path()));
@@ -251,3 +259,30 @@ TEST(JobLoader, QuantLibBondRequiresEnabledBuild) {
     }
 #endif
 }
+
+#ifdef SCHD_WITH_QUANTLIB
+TEST(JobLoader, RejectsInvalidQuantLibIssueDatesAndNamesTheJob) {
+    const std::vector<std::string> invalid_issue_dates{
+        R"json("2024-02-30")json",
+        R"json("not-a-date")json",
+        R"json("2024-01-02")json",
+        R"json("2024-01-03")json",
+        "null"};
+
+    for (const auto& issue_date : invalid_issue_dates) {
+        TemporaryJsonFile file(
+            R"json({"jobs":[{"id":"quantlib-issue","type":"quantlib_bond",)json"
+            R"json("category":"EOD","params":{"face_value":100,"coupon_rate":0.05,)json"
+            R"json("maturity_years":5,"yield":0.05,"settlement_date":"2024-01-02",)json"
+            R"json("issue_date":)json" + issue_date + "}}]}");
+        try {
+            static_cast<void>(load_job_file(file.path()));
+            FAIL() << "Expected invalid issue_date: " << issue_date;
+        } catch (const std::runtime_error& error) {
+            EXPECT_NE(
+                std::string(error.what()).find("quantlib-issue"),
+                std::string::npos) << error.what();
+        }
+    }
+}
+#endif

@@ -1,11 +1,13 @@
 #include "job_loader.hpp"
 
+#include <algorithm>
 #include <charconv>
 #include <chrono>
 #include <cmath>
 #include <cstdint>
 #include <fstream>
 #include <limits>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -27,6 +29,7 @@ struct ParsedJob {
     std::string id;
     std::string type;
     std::string command;
+    std::string issue_date;
     std::string settlement_date;
     double face_value{100.0};
     double coupon_rate{0.0};
@@ -100,14 +103,16 @@ double required_number(const Json& value, const char* field, const std::string& 
     return number;
 }
 
-bool is_valid_settlement_date(const std::string& value) {
+std::optional<std::chrono::year_month_day> parse_calendar_date(
+    const std::string& value)
+{
     if (value.size() != 10 || value[4] != '-' || value[7] != '-') {
-        return false;
+        return std::nullopt;
     }
     for (std::size_t index = 0; index < value.size(); ++index) {
         if (index != 4 && index != 7 &&
             (value[index] < '0' || value[index] > '9')) {
-            return false;
+            return std::nullopt;
         }
     }
 
@@ -123,12 +128,47 @@ bool is_valid_settlement_date(const std::string& value) {
         !parse_part(std::string_view(value).substr(5, 2), month_value) ||
         !parse_part(std::string_view(value).substr(8, 2), day_value) ||
         year_value == 0) {
-        return false;
+        return std::nullopt;
     }
-    return std::chrono::year_month_day{
+    const std::chrono::year_month_day date{
         std::chrono::year{year_value},
         std::chrono::month{month_value},
-        std::chrono::day{day_value}}.ok();
+        std::chrono::day{day_value}};
+    if (!date.ok()) {
+        return std::nullopt;
+    }
+    return date;
+}
+
+std::string format_calendar_date(const std::chrono::year_month_day& date) {
+    std::string year = std::to_string(static_cast<int>(date.year()));
+    year.insert(year.begin(), 4 - year.size(), '0');
+    const auto two_digits = [](unsigned int value) {
+        return value < 10 ? "0" + std::to_string(value) : std::to_string(value);
+    };
+    return year + "-" + two_digits(static_cast<unsigned int>(date.month())) +
+        "-" + two_digits(static_cast<unsigned int>(date.day()));
+}
+
+std::string default_issue_date(
+    const std::chrono::year_month_day& settlement_date,
+    const std::string& id)
+{
+    const std::chrono::year_month issue_month =
+        (settlement_date.year() / settlement_date.month()) -
+        std::chrono::months{3};
+    const std::chrono::day final_day{
+        std::chrono::year_month_day_last{
+            issue_month.year(),
+            std::chrono::month_day_last{issue_month.month()}}.day()};
+    const std::chrono::year_month_day issue_date{
+        issue_month.year(),
+        issue_month.month(),
+        std::min(settlement_date.day(), final_day)};
+    if (!issue_date.ok() || issue_date.year() <= std::chrono::year{0}) {
+        job_error(id, "'params.settlement_date' is too early to derive 'params.issue_date'");
+    }
+    return format_calendar_date(issue_date);
 }
 
 std::size_t workers_value(const Json& value) {
@@ -215,6 +255,7 @@ LoadedJobFile load_job_file(const std::filesystem::path& path) {
             command = required_string(value, "command", actual_id);
         }
 
+        std::string issue_date;
         std::string settlement_date = "2024-01-02";
         double face_value = 100.0;
         double coupon_rate = 0.0;
@@ -252,10 +293,38 @@ LoadedJobFile load_job_file(const std::filesystem::path& path) {
                     job_error(actual_id, "'params.settlement_date' must be a string");
                 }
                 settlement_date = settlement_it->get<std::string>();
-                if (!is_valid_settlement_date(settlement_date)) {
+            }
+            const auto settlement_calendar_date =
+                parse_calendar_date(settlement_date);
+            if (!settlement_calendar_date) {
+                job_error(
+                    actual_id,
+                    "'params.settlement_date' must be a real date in YYYY-MM-DD form");
+            }
+            if (type == "quantlib_bond") {
+                const auto issue_it = params_it->find("issue_date");
+                std::optional<std::chrono::year_month_day> issue_calendar_date;
+                if (issue_it == params_it->end()) {
+                    issue_date = default_issue_date(*settlement_calendar_date, actual_id);
+                    issue_calendar_date = parse_calendar_date(issue_date);
+                } else {
+                    if (!issue_it->is_string()) {
+                        job_error(actual_id, "'params.issue_date' must be a string");
+                    }
+                    issue_date = issue_it->get<std::string>();
+                    issue_calendar_date = parse_calendar_date(issue_date);
+                    if (!issue_calendar_date) {
+                        job_error(
+                            actual_id,
+                            "'params.issue_date' must be a real date in YYYY-MM-DD form");
+                    }
+                }
+                if (!issue_calendar_date ||
+                    std::chrono::sys_days{*issue_calendar_date} >=
+                        std::chrono::sys_days{*settlement_calendar_date}) {
                     job_error(
                         actual_id,
-                        "'params.settlement_date' must be a real date in YYYY-MM-DD form");
+                        "'params.issue_date' must be strictly before 'params.settlement_date'");
                 }
             }
         }
@@ -294,6 +363,7 @@ LoadedJobFile load_job_file(const std::filesystem::path& path) {
             actual_id,
             type,
             command,
+            issue_date,
             settlement_date,
             face_value,
             coupon_rate,
@@ -341,6 +411,7 @@ LoadedJobFile load_job_file(const std::filesystem::path& path) {
                 parsed_job.coupon_rate,
                 parsed_job.maturity_years,
                 parsed_job.yield,
+                parsed_job.issue_date,
                 parsed_job.settlement_date,
                 parsed_job.max_attempts);
 #endif

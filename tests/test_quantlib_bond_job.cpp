@@ -28,13 +28,14 @@ double reported_value(const std::string& message, const std::string& field) {
 
 TEST(QuantLibBondJob, ParCouponPricesNearPar) {
     QuantLibBondJob job(
-        "par-bond", 1000.0, 0.05, 5, 0.05, "2024-01-02", 1);
+        "par-bond", 1000.0, 0.05, 5, 0.05,
+        "2023-10-02", "2024-01-02", 1);
 
     const ExecResult result = job.execute();
 
     ASSERT_EQ(result.status, Job_Status::SUCCESS) << result.message;
     EXPECT_NEAR(reported_value(result.message, "clean_price"), 100.0, 0.5);
-    EXPECT_NEAR(reported_value(result.message, "npv"), 1000.0, 5.0);
+    EXPECT_NEAR(reported_value(result.message, "npv"), 1012.5, 5.0);
     EXPECT_NE(result.message.find("npv="), std::string::npos);
     EXPECT_NE(result.message.find("dirty_price="), std::string::npos);
     EXPECT_NE(result.message.find("accrued="), std::string::npos);
@@ -43,9 +44,11 @@ TEST(QuantLibBondJob, ParCouponPricesNearPar) {
 
 TEST(QuantLibBondJob, HigherYieldProducesLowerPrice) {
     QuantLibBondJob lower_yield(
-        "lower-yield", 100.0, 0.05, 5, 0.04, "2024-01-02", 1);
+        "lower-yield", 100.0, 0.05, 5, 0.04,
+        "2023-10-02", "2024-01-02", 1);
     QuantLibBondJob higher_yield(
-        "higher-yield", 100.0, 0.05, 5, 0.05, "2024-01-02", 1);
+        "higher-yield", 100.0, 0.05, 5, 0.05,
+        "2023-10-02", "2024-01-02", 1);
 
     const ExecResult lower_result = lower_yield.execute();
     const ExecResult higher_result = higher_yield.execute();
@@ -61,7 +64,8 @@ TEST(QuantLibBondJob, RestoresPreviousEvaluationDate) {
     const QuantLib::Date previous_date(15, QuantLib::September, 2011);
     QuantLib::Settings::instance().evaluationDate() = previous_date;
     QuantLibBondJob job(
-        "date-restore", 100.0, 0.05, 5, 0.05, "2024-01-02", 1);
+        "date-restore", 100.0, 0.05, 5, 0.05,
+        "2023-10-02", "2024-01-02", 1);
 
     const ExecResult result = job.execute();
 
@@ -82,7 +86,7 @@ TEST(QuantLibBondJob, DifferentSettlementDatesAreSafeAcrossWorkers) {
         const std::string date =
             "2024-01-0" + std::to_string(day);
         jobs.push_back(std::make_unique<QuantLibBondJob>(
-            id, 100.0, 0.05, 5, 0.04, date, 1));
+            id, 100.0, 0.05, 5, 0.04, "2023-10-02", date, 1));
         scheduler.add_job(jobs.back().get(), 1, 1);
         settlement_dates.push_back(date);
     }
