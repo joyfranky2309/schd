@@ -1,18 +1,21 @@
 #include "job_loader.hpp"
 
+#include <charconv>
+#include <chrono>
+#include <cmath>
 #include <cstdint>
 #include <fstream>
 #include <limits>
-#include <cmath>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <unordered_set>
 #include <utility>
 
 #include <nlohmann/json.hpp>
 
-#include "shell_job.hpp"
 #include "cpu_pricing_job.hpp"
+#include "shell_job.hpp"
 
 namespace {
 using Json = nlohmann::json;
@@ -92,6 +95,37 @@ double required_number(const Json& value, const char* field, const std::string& 
         job_error(id, std::string("'params.") + field + "' must be finite");
     }
     return number;
+}
+
+bool is_valid_settlement_date(const std::string& value) {
+    if (value.size() != 10 || value[4] != '-' || value[7] != '-') {
+        return false;
+    }
+    for (std::size_t index = 0; index < value.size(); ++index) {
+        if (index != 4 && index != 7 &&
+            (value[index] < '0' || value[index] > '9')) {
+            return false;
+        }
+    }
+
+    int year_value = 0;
+    unsigned int month_value = 0;
+    unsigned int day_value = 0;
+    const auto parse_part = [](std::string_view part, auto& result) {
+        const auto [end, error] =
+            std::from_chars(part.data(), part.data() + part.size(), result);
+        return error == std::errc{} && end == part.data() + part.size();
+    };
+    if (!parse_part(std::string_view(value).substr(0, 4), year_value) ||
+        !parse_part(std::string_view(value).substr(5, 2), month_value) ||
+        !parse_part(std::string_view(value).substr(8, 2), day_value) ||
+        year_value == 0) {
+        return false;
+    }
+    return std::chrono::year_month_day{
+        std::chrono::year{year_value},
+        std::chrono::month{month_value},
+        std::chrono::day{day_value}}.ok();
 }
 
 std::size_t workers_value(const Json& value) {
@@ -194,8 +228,14 @@ LoadedJobFile load_job_file(const std::filesystem::path& path) {
             if (face_value <= 0.0) {
                 job_error(actual_id, "'params.face_value' must be positive");
             }
-            if (maturity_years < 1) {
-                job_error(actual_id, "'params.maturity_years' must be at least 1");
+            if (coupon_rate < 0.0 || coupon_rate > 1.0) {
+                job_error(actual_id, "'params.coupon_rate' must be in [0, 1]");
+            }
+            if (yield < 0.0 || yield > 1.0) {
+                job_error(actual_id, "'params.yield' must be in [0, 1]");
+            }
+            if (maturity_years < 1 || maturity_years > 100) {
+                job_error(actual_id, "'params.maturity_years' must be in [1, 100]");
             }
             const auto settlement_it = params_it->find("settlement_date");
             if (settlement_it != params_it->end()) {
@@ -203,6 +243,11 @@ LoadedJobFile load_job_file(const std::filesystem::path& path) {
                     job_error(actual_id, "'params.settlement_date' must be a string");
                 }
                 settlement_date = settlement_it->get<std::string>();
+                if (!is_valid_settlement_date(settlement_date)) {
+                    job_error(
+                        actual_id,
+                        "'params.settlement_date' must be a real date in YYYY-MM-DD form");
+                }
             }
         }
         const std::string category_name = required_string(value, "category", actual_id);

@@ -1,10 +1,9 @@
 #include "cpu_pricing_job.hpp"
 
+#include <sstream>
+#include <iomanip>
 #include <cmath>
 #include <cstdint>
-#include <limits>
-#include <iomanip>
-#include <sstream>
 #include <string>
 
 CpuPricingJob::CpuPricingJob(
@@ -24,37 +23,26 @@ CpuPricingJob::CpuPricingJob(
 
 ExecResult CpuPricingJob::execute() {
     constexpr std::uint32_t sample_count = 20000;
-    std::uint32_t state = 0x5u;
-    double dirty_price_sum = 0.0;
+    double price_sum = 0.0;
 
     for (std::uint32_t sample = 0; sample < sample_count; ++sample) {
-        double present_value = 0.0;
+        double price = 0.0;
         for (int year = 1; year <= maturity_years_; ++year) {
-            state ^= state << 13;
-            state ^= state >> 17;
-            state ^= state << 5;
-            const double random_unit =
-                static_cast<double>(state) /
-                static_cast<double>(std::numeric_limits<std::uint32_t>::max());
-            const double simulated_yield = yield_ + (random_unit - 0.5) * 0.004;
             const double coupon = face_value_ * coupon_rate_;
             const double cashflow =
                 year == maturity_years_ ? coupon + face_value_ : coupon;
-            present_value +=
-                cashflow / std::pow(1.0 + simulated_yield, static_cast<double>(year));
+            price += cashflow / std::pow(1.0 + yield_, static_cast<double>(year));
         }
-        dirty_price_sum += present_value;
+        price_sum += price;
     }
 
-    const double dirty_price = dirty_price_sum / sample_count;
-    const double clean_price = dirty_price;
+    const double price = price_sum / sample_count;
 
     std::ostringstream message;
     message << std::setprecision(10)
-            << "clean price=" << clean_price
-            << "; dirty price=" << dirty_price
-            << "; settlement_date=" << settlement_date_
-            << "; deterministic_monte_carlo_samples=" << sample_count;
+            << "price=" << price
+            << "; samples=" << sample_count
+            << "; settlement_date=" << settlement_date_;
 
     return ExecResult{Job_Status::SUCCESS, 0, message.str()};
 }

@@ -50,7 +50,8 @@ struct ProcessResult {
 
 ProcessResult run_cli(
     const std::filesystem::path& input_path,
-    const std::filesystem::path& output_path)
+    const std::filesystem::path& output_path,
+    bool verbose = false)
 {
     const pid_t child_pid = ::fork();
     if (child_pid == -1) {
@@ -68,14 +69,26 @@ ProcessResult run_cli(
         }
         ::close(output_fd);
         ::close(error_fd);
-        ::execl(
-            SCHD_CLI_PATH,
-            SCHD_CLI_PATH,
-            "run",
-            input_path.c_str(),
-            "--workers",
-            "2",
-            static_cast<char*>(nullptr));
+        if (verbose) {
+            ::execl(
+                SCHD_CLI_PATH,
+                SCHD_CLI_PATH,
+                "run",
+                input_path.c_str(),
+                "--workers",
+                "2",
+                "--verbose",
+                static_cast<char*>(nullptr));
+        } else {
+            ::execl(
+                SCHD_CLI_PATH,
+                SCHD_CLI_PATH,
+                "run",
+                input_path.c_str(),
+                "--workers",
+                "2",
+                static_cast<char*>(nullptr));
+        }
         ::_exit(127);
     }
 
@@ -145,4 +158,28 @@ TEST(Cli, RunReportsFailureAndSkippedDependentWithExitOne) {
     EXPECT_EQ(std::get<0>(rows.at("independent")), "SUCCESS");
     EXPECT_EQ(std::get<1>(rows.at("independent")), 1);
     EXPECT_GE(std::get<2>(rows.at("independent")), 0);
+}
+
+TEST(Cli, VerboseRunPrintsCpuPricingMessage) {
+    TemporaryFile input(
+        "pricing-input.json",
+        R"json({
+            "jobs": [{
+                "id": "cpu-price",
+                "type": "cpu_pricing",
+                "category": "EOD",
+                "params": {
+                    "face_value": 100,
+                    "coupon_rate": 0.05,
+                    "maturity_years": 5,
+                    "yield": 0.05
+                }
+            }]
+        })json");
+    TemporaryFile output("pricing-output.txt", "");
+
+    const auto result = run_cli(input.path(), output.path(), true);
+
+    EXPECT_EQ(result.exit_code, 0);
+    EXPECT_NE(result.output.find("cpu-price: price="), std::string::npos);
 }

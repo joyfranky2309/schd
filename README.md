@@ -51,9 +51,9 @@ cmake -S . -B build-quantlib \
 ```
 
 QuantLib is not available in the current build environment. M5 therefore ships
-a `cpu_pricing` job as a pricing-style CPU workload. It is deterministic
-Monte-Carlo present-value loop written in plain C++; it is not a QuantLib bond
-pricer and does not provide a market-accurate bond price.
+a `cpu_pricing` job as a synthetic CPU-bound pricing workload written in plain
+C++. It repeats deterministic present-value calculations; it is not Monte
+Carlo pricing and is not a QuantLib bond pricer.
 
 ## CLI
 
@@ -62,6 +62,7 @@ Run a job file or validate its dependency graph without executing it:
 ```sh
 ./build/schd run jobs.json
 ./build/schd run jobs.json --workers 4
+./build/schd run jobs.json --verbose
 ./build/schd validate jobs.json
 ```
 
@@ -106,5 +107,4 @@ Pricing-style CPU job example:
 - Shell jobs have no timeout, and standard output is inherited.
 - Run history is in memory only; there is no persistence, REST API, or
   cron/calendar trigger.
-- M5 uses a deterministic plain-C++ pricing workload fallback; QuantLib
-  integration is not claimed until its package is available.
+- `cpu_pricing` is a synthetic workload, not a market-accurate bond pricer.

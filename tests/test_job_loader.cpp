@@ -42,6 +42,20 @@ public:
 private:
     std::filesystem::path path_;
 };
+
+void expect_invalid_cpu_pricing_params(const std::string& params) {
+    TemporaryJsonFile file(
+        R"json({"jobs":[{"id":"pricing-invalid","type":"cpu_pricing","category":"EOD","params":)json" +
+        params + "}]}");
+    try {
+        static_cast<void>(load_job_file(file.path()));
+        FAIL() << "Expected invalid cpu_pricing params";
+    } catch (const std::runtime_error& error) {
+        EXPECT_NE(
+            std::string(error.what()).find("pricing-invalid"),
+            std::string::npos);
+    }
+}
 }
 
 TEST(JobLoader, LoadsRegistrationsDefaultsAndIgnoresUnknownFields) {
@@ -142,4 +156,66 @@ TEST(JobLoader, RejectsInvalidJobDefinitionsAndNamesTheJob) {
             EXPECT_NE(std::string(error.what()).find(offending_id), std::string::npos);
         }
     }
+}
+
+TEST(JobLoader, RejectsNonPositiveCpuPricingFaceValueAndNamesTheJob) {
+    expect_invalid_cpu_pricing_params(
+        R"json({"face_value":0,"coupon_rate":0.05,"maturity_years":5,"yield":0.05})json");
+    expect_invalid_cpu_pricing_params(
+        R"json({"face_value":-1,"coupon_rate":0.05,"maturity_years":5,"yield":0.05})json");
+}
+
+TEST(JobLoader, RejectsCpuPricingCouponOutsideUnitIntervalAndNamesTheJob) {
+    expect_invalid_cpu_pricing_params(
+        R"json({"face_value":100,"coupon_rate":-0.01,"maturity_years":5,"yield":0.05})json");
+    expect_invalid_cpu_pricing_params(
+        R"json({"face_value":100,"coupon_rate":1.01,"maturity_years":5,"yield":0.05})json");
+}
+
+TEST(JobLoader, RejectsCpuPricingYieldOutsideUnitIntervalAndNamesTheJob) {
+    expect_invalid_cpu_pricing_params(
+        R"json({"face_value":100,"coupon_rate":0.05,"maturity_years":5,"yield":-0.01})json");
+    expect_invalid_cpu_pricing_params(
+        R"json({"face_value":100,"coupon_rate":0.05,"maturity_years":5,"yield":1.01})json");
+}
+
+TEST(JobLoader, RejectsCpuPricingMaturityOutsideIntegerRangeAndNamesTheJob) {
+    expect_invalid_cpu_pricing_params(
+        R"json({"face_value":100,"coupon_rate":0.05,"maturity_years":0,"yield":0.05})json");
+    expect_invalid_cpu_pricing_params(
+        R"json({"face_value":100,"coupon_rate":0.05,"maturity_years":101,"yield":0.05})json");
+    expect_invalid_cpu_pricing_params(
+        R"json({"face_value":100,"coupon_rate":0.05,"maturity_years":1.5,"yield":0.05})json");
+}
+
+TEST(JobLoader, RejectsInvalidCpuPricingCalendarDateAndNamesTheJob) {
+    expect_invalid_cpu_pricing_params(
+        R"json({"face_value":100,"coupon_rate":0.05,"maturity_years":5,"yield":0.05,"settlement_date":"2024-02-30"})json");
+    expect_invalid_cpu_pricing_params(
+        R"json({"face_value":100,"coupon_rate":0.05,"maturity_years":5,"yield":0.05,"settlement_date":"not-a-date"})json");
+    expect_invalid_cpu_pricing_params(
+        R"json({"face_value":100,"coupon_rate":0.05,"maturity_years":5,"yield":0.05,"settlement_date":"2024-2-03"})json");
+    expect_invalid_cpu_pricing_params(
+        R"json({"face_value":100,"coupon_rate":0.05,"maturity_years":5,"yield":0.05,"settlement_date":null})json");
+}
+
+TEST(JobLoader, CpuPricingDefaultsSettlementDate) {
+    TemporaryJsonFile file(R"json({
+        "jobs": [{
+            "id": "pricing-default-date",
+            "type": "cpu_pricing",
+            "category": "EOD",
+            "params": {
+                "face_value": 100,
+                "coupon_rate": 0.05,
+                "maturity_years": 5,
+                "yield": 0.05
+            }
+        }]
+    })json");
+
+    const auto loaded = load_job_file(file.path());
+    const auto result = loaded.jobs.front()->execute();
+
+    EXPECT_NE(result.message.find("settlement_date=2024-01-02"), std::string::npos);
 }

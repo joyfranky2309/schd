@@ -17,7 +17,7 @@
 namespace {
 void print_usage(std::ostream& output) {
     output << "Usage:\n"
-           << "  schd run <file> [--workers N]\n"
+           << "  schd run <file> [--workers N] [--verbose]\n"
            << "  schd validate <file>\n";
 }
 
@@ -55,7 +55,8 @@ int validate_command(const std::string& path) {
 
 int run_command(
     const std::string& path,
-    const std::optional<std::size_t>& worker_override)
+    const std::optional<std::size_t>& worker_override,
+    bool verbose)
 {
     LoadedJobFile job_file = load_job_file(path);
     validate_acyclic(job_file);
@@ -104,6 +105,15 @@ int run_command(
             all_succeeded = false;
         }
     }
+    if (verbose) {
+        for (const auto& registration : job_file.registrations) {
+            const auto records = scheduler.history(registration.job->id());
+            if (!records.empty()) {
+                std::cout << registration.job->id() << ": "
+                          << records.back().message << '\n';
+            }
+        }
+    }
     return all_succeeded ? 0 : 1;
 }
 
@@ -123,19 +133,27 @@ int execute_cli(int argc, char* argv[]) {
     }
 
     if (command == "run") {
-        if (argc != 3 && argc != 5) {
+        if (argc < 3) {
             print_usage(std::cerr);
-            throw std::invalid_argument("run requires a job file and optional --workers N");
+            throw std::invalid_argument("run requires a job file");
         }
         std::optional<std::size_t> worker_override;
-        if (argc == 5) {
-            if (std::string_view(argv[3]) != "--workers") {
+        bool verbose = false;
+        for (int index = 3; index < argc; ++index) {
+            const std::string_view option(argv[index]);
+            if (option == "--verbose") {
+                verbose = true;
+            } else if (option == "--workers" && index + 1 < argc) {
+                if (worker_override.has_value()) {
+                    throw std::invalid_argument("--workers may only be specified once");
+                }
+                worker_override = parse_worker_count(argv[++index]);
+            } else {
                 print_usage(std::cerr);
-                throw std::invalid_argument("expected --workers N");
+                throw std::invalid_argument("expected --workers N or --verbose");
             }
-            worker_override = parse_worker_count(argv[4]);
         }
-        return run_command(argv[2], worker_override);
+        return run_command(argv[2], worker_override, verbose);
     }
 
     print_usage(std::cerr);
