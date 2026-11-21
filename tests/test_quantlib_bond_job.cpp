@@ -42,6 +42,20 @@ TEST(QuantLibBondJob, ParCouponPricesNearPar) {
     EXPECT_NE(result.message.find("settlement_date=2024-01-02"), std::string::npos);
 }
 
+TEST(QuantLibBondJob, AccruedInterestMakesDirtyPriceExceedCleanPrice) {
+    QuantLibBondJob job(
+        "accrued-bond", 100.0, 0.05, 5, 0.05,
+        "2023-10-02", "2024-01-02", 1);
+
+    const ExecResult result = job.execute();
+
+    ASSERT_EQ(result.status, Job_Status::SUCCESS) << result.message;
+    EXPECT_GT(reported_value(result.message, "accrued"), 0.0);
+    EXPECT_GT(
+        reported_value(result.message, "dirty_price"),
+        reported_value(result.message, "clean_price"));
+}
+
 TEST(QuantLibBondJob, HigherYieldProducesLowerPrice) {
     QuantLibBondJob lower_yield(
         "lower-yield", 100.0, 0.05, 5, 0.04,
@@ -103,6 +117,10 @@ TEST(QuantLibBondJob, DifferentSettlementDatesAreSafeAcrossWorkers) {
         EXPECT_NE(
             history.front().message.find(
                 "settlement_date=" + settlement_dates[index]),
+            std::string::npos);
+        EXPECT_NE(
+            history.front().message.find(
+                "evaluation_date=" + settlement_dates[index]),
             std::string::npos);
     }
 }
