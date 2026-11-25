@@ -1,0 +1,174 @@
+{
+  "version": 2,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 20,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "release",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
+      "name": "asan",
+      "inherits": "release",
+      "binaryDir": "${sourceDir}/build/asan",
+      "cacheVariables": {
+        "SCHD_ASAN": "ON"
+      }
+    },
+    {
+      "name": "tsan",
+      "inherits": "release",
+      "binaryDir": "${sourceDir}/build/tsan",
+      "cacheVariables": {
+        "SCHD_TSAN": "ON"
+      }
+    },
+    {
+      "name": "quantlib",
+      "inherits": "release",
+      "binaryDir": "${sourceDir}/build/quantlib",
+      "cacheVariables": {
+        "SCHD_WITH_QUANTLIB": "ON"
+      }
+    },
+    {
+      "name": "release-lowmem",
+      "inherits": "release",
+      "binaryDir": "${sourceDir}/build/release-lowmem",
+      "cacheVariables": {
+        "SCHD_LOW_MEMORY": "ON"
+      }
+    },
+    {
+      "name": "asan-lowmem",
+      "inherits": "asan",
+      "binaryDir": "${sourceDir}/build/asan-lowmem",
+      "cacheVariables": {
+        "SCHD_LOW_MEMORY": "ON"
+      }
+    },
+    {
+      "name": "tsan-lowmem",
+      "inherits": "tsan",
+      "binaryDir": "${sourceDir}/build/tsan-lowmem",
+      "cacheVariables": {
+        "SCHD_LOW_MEMORY": "ON"
+      }
+    },
+    {
+      "name": "quantlib-lowmem",
+      "inherits": "quantlib",
+      "binaryDir": "${sourceDir}/build/quantlib-lowmem",
+      "cacheVariables": {
+        "SCHD_LOW_MEMORY": "ON"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "release",
+      "configurePreset": "release",
+      "jobs": 1
+    },
+    {
+      "name": "asan",
+      "configurePreset": "asan",
+      "jobs": 1
+    },
+    {
+      "name": "tsan",
+      "configurePreset": "tsan",
+      "jobs": 1
+    },
+    {
+      "name": "quantlib",
+      "configurePreset": "quantlib",
+      "jobs": 1
+    },
+    {
+      "name": "release-lowmem",
+      "configurePreset": "release-lowmem",
+      "jobs": 1
+    },
+    {
+      "name": "asan-lowmem",
+      "configurePreset": "asan-lowmem",
+      "jobs": 1
+    },
+    {
+      "name": "tsan-lowmem",
+      "configurePreset": "tsan-lowmem",
+      "jobs": 1
+    },
+    {
+      "name": "quantlib-lowmem",
+      "configurePreset": "quantlib-lowmem",
+      "jobs": 1
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "release",
+      "configurePreset": "release",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "asan",
+      "configurePreset": "asan",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "tsan",
+      "configurePreset": "tsan",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "quantlib",
+      "configurePreset": "quantlib",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "release-lowmem",
+      "configurePreset": "release-lowmem",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "asan-lowmem",
+      "configurePreset": "asan-lowmem",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "tsan-lowmem",
+      "configurePreset": "tsan-lowmem",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "quantlib-lowmem",
+      "configurePreset": "quantlib-lowmem",
+      "output": {
+        "outputOnFailure": true
+      }
+    }
+  ]
+}

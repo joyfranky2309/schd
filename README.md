@@ -74,6 +74,20 @@ ctest --test-dir build-quantlib --output-on-failure
 
 For vcpkg, add `-DCMAKE_TOOLCHAIN_FILE=$HOME/projects/vcpkg/scripts/buildsystems/vcpkg.cmake`.
 
+## Building on small machines
+
+`CMakePresets.json` provides `release`, `asan`, `tsan`, and `quantlib` configure/build/test presets, plus a `-lowmem` variant of each. Build presets use one job. Ninja also puts `src/job_loader.cpp`, `src/quantlib_bond_job.cpp`, and `tests/test_scheduler.cpp` in a single-slot compile pool so these memory-heavy translation units do not compile together. Low-memory presets disable debug info with `-g0` and, with GCC, reduce garbage-collector memory use using `--param ggc-min-expand=20` and `--param ggc-min-heapsize=32768`.
+
+For example:
+
+```sh
+cmake --preset release-lowmem
+cmake --build --preset release-lowmem
+ctest --test-dir build/release-lowmem --output-on-failure --parallel 1
+```
+
+`scripts/check-all.sh` builds and tests all eight configurations sequentially with one build/test job, removes each configuration's build directory afterward, and reports its peak resident memory using `/usr/bin/time -v`.
+
 ## Run
 
 ```sh

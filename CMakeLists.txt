@@ -9,6 +9,22 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 option(SCHD_ASAN "Build with ASan + UBSan" OFF)
 option(SCHD_TSAN "Build with ThreadSanitizer" OFF)
 option(SCHD_WITH_QUANTLIB "Enable the optional QuantLib bond job" OFF)
+option(SCHD_LOW_MEMORY "Use lower-memory compiler settings" OFF)
+
+set_property(GLOBAL PROPERTY JOB_POOLS heavy=1)
+set_source_files_properties(
+  src/job_loader.cpp
+  src/quantlib_bond_job.cpp
+  tests/test_scheduler.cpp
+  PROPERTIES JOB_POOL_COMPILE heavy
+)
+
+if(SCHD_LOW_MEMORY)
+  add_compile_options(-g0)
+  if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    add_compile_options(--param=ggc-min-expand=20 --param=ggc-min-heapsize=32768)
+  endif()
+endif()
 
 if(SCHD_ASAN AND SCHD_TSAN)
   message(FATAL_ERROR "SCHD_ASAN and SCHD_TSAN cannot be enabled together")
