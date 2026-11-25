@@ -29,9 +29,9 @@ flowchart LR
 
 ## AutoSys comparison
 
-- `schd` skips only transitive dependents of a permanent failure, while whole-box failure behavior is outside its scope (**owner to verify**).
-- `schd` applies category and numeric priority to ad-hoc jobs; the comparable AutoSys ad-hoc priority behavior should be treated as the owner's verification item (**owner to verify**).
-- `schd` stores per-job, per-attempt `RunRecord` audit history in memory; retainable/exportable AutoSys audit history is a separate implementation claim (**owner to verify**).
+- When a job fails, `schd` skips its transitive dependents and records the failed ancestor; independent jobs continue running.
+- `schd` records the status, exit code, and message for every attempt.
+- Compared with the incumbent, `schd` lacks file watchers, calendars/cron, agents, alerting, container support, and stdout/stderr capture.
 
 ## Build
 
