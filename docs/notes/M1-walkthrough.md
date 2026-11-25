@@ -8,7 +8,7 @@
 
 ## 2. Functions added or changed
 - `Job::execute`: now returns `ExecResult`; the implicit status constructor preserves simple existing job implementations.
-- `ThreadPool::worker_loop`: converts execution exceptions into failed results and contains completion-callback exceptions.
+- `ThreadPool::worker_loop`: converts execution exceptions into failed results, contains completion-callback exceptions, and falls back to terminal failure if the callback cannot complete.
 - `Scheduler` completion callback: now receives the full `ExecResult` while continuing to make scheduling decisions from its status.
 - Test job execution and callback tests: verify exception status/message propagation and that a worker continues after a callback throws.
 
@@ -24,7 +24,7 @@
 
 ## 5. Assumptions
 - A thrown execution is represented as `FAILED`, exit code `-1`, and the exception text; unknown exceptions use a descriptive message.
-- Callback errors are recorded to standard error; the worker continues processing later work.
+- Callback errors are recorded once to standard error after the completion lock is released; the worker continues processing later work.
 
 ## 6. Three review questions
 - Why must `Job::execute` run outside `queue_mutex_`, even though the completion callback runs inside it?

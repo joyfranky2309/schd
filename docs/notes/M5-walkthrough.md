@@ -39,7 +39,7 @@
 - `cpu_pricing` remains a synthetic CPU-bound workload, not Monte Carlo pricing or a QuantLib pricer.
 - Pricing parameters use `face_value > 0`, rates in `[0, 1]`, maturity years in `[1, 100]`, and a real optional settlement date; the default is `2024-01-02`.
 - QuantLib remains opt-in; it can be found as a config package or through system headers and library. CI installs `libquantlib0-dev` and tests an enabled Release build.
-- All six local Release, ASan/UBSan, and TSan configurations passed: 46 tests per QuantLib-OFF configuration and 53 per QuantLib-ON configuration. The strengthened different-settlement-date TSan test also passed 20 repeated runs.
+- The current Release/ASan/UBSan suite is 46 tests with `SCHD_WITH_QUANTLIB=OFF`; QuantLib-enabled builds add the option-specific pricing tests, for a 53-test suite in the current test set.
 - The installed QuantLib 1.41 configuration does not define `QL_ENABLE_SESSIONS`.
 
 ## 6. Three review questions

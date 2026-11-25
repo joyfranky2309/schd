@@ -16,7 +16,7 @@
 - `tests/test_job_status.cpp`: added the status transition and formatting checks.
 - `tests/test_job_run.cpp`: moved the run timestamp and illegal-transition assertions into GTest.
 - `tests/test_dag.cpp`: moved the DAG readiness and cycle checks into GTest.
-- `tests/test_scheduler.cpp`: moved the dependency-order, priority-order, exception-handling, and invalid-graph checks into GTest. The priority case did not verify the planned B/E insertion-order tie because those jobs had different priorities.
+- `tests/test_scheduler.cpp`: moved the dependency-order, priority-order, exception-handling, and invalid-graph checks into GTest. It now verifies the five-job category/priority/FIFO ordering case and 20 equal-priority jobs in registration order.
 
 ## 3. Invariants
 - I1: queue mutation remains guarded by `ThreadPool::queue_mutex_` in `ThreadPool::push_jobs` and `ThreadPool::worker_loop`.
@@ -32,7 +32,7 @@
 - `Scheduler::start`: no additional lock was introduced; the implementation still pushes ready jobs through the pool once per schedule.
 
 ## 5. Assumptions
-- M0 intended to migrate the checks without changing scheduler behavior, but the priority test did not cover the planned equal-priority B/E FIFO tie. Therefore, the migrated tests alone do not establish that the tie-break behavior was preserved; that case is restored in a later milestone.
+- M0 intended to migrate the checks without changing scheduler behavior; the priority test and equal-priority registration test establish the three-tier queue ordering.
 - The placeholder `schd` CLI is intentionally minimal because the real command parser arrives in M4.
 
 ## 6. Three review questions
