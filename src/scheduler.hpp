@@ -92,6 +92,42 @@ class Scheduler {
         return finished_jobs;
     }
 
+    FinishedJobs handle_callback_error(
+        const std::string& id,
+        const ExecResult& result,
+        const JobRun& run)
+    {
+        FinishedJobs finished_jobs;
+        if (final_statuses_.find(id) != final_statuses_.end()) {
+            return finished_jobs;
+        }
+
+        auto& records = history_[id];
+        const int attempt = static_cast<int>(records.size()) + 1;
+        records.push_back(RunRecord{
+            id,
+            attempt,
+            Job_Status::FAILED,
+            run.queued_time(),
+            run.start_time(),
+            run.end_time(),
+            result.exit_code,
+            result.message});
+        final_statuses_.try_emplace(id, Job_Status::FAILED);
+
+        for (const auto& dependent_id : dag_.transitive_dependents(id)) {
+            if (!dag_.mark_skipped(dependent_id)) {
+                continue;
+            }
+            const auto& entry = registry_.at(dependent_id);
+            finished_jobs.skipped.push_back(
+                FinishedJobs::SkippedJob{
+                    ReadyJob{entry.job, entry.category, entry.user_priority}, id});
+        }
+        completion_latch_->count_down();
+        return finished_jobs;
+    }
+
     std::unordered_map<std::string, JobEntry> registry_;
     DAG dag_;
     std::unordered_map<std::string, Job_Status> final_statuses_;
@@ -108,6 +144,11 @@ public:
               const ExecResult& result,
               const JobRun& run) {
               return handle_finished(id, result, run);
+          }, [this](
+              const std::string& id,
+              const ExecResult& result,
+              const JobRun& run) {
+              return handle_callback_error(id, result, run);
           })
     {
     }

@@ -5,6 +5,8 @@
 #include <chrono>
 #include <cstddef>
 #include <functional>
+#include <future>
+#include <latch>
 #include <memory>
 #include <mutex>
 #include <random>
@@ -466,17 +468,42 @@ TEST(Scheduler, CallbackExceptionsDoNotTerminateWorkerThreads) {
     StubJob first_job("callback-exception-job-1", 1);
     StubJob second_job("callback-exception-job-2", 1);
     int callback_count = 0;
+    int callback_error_count = 0;
+    std::latch completion_latch(2);
+    std::vector<Job_Status> fallback_statuses;
+    std::mutex fallback_mutex;
     {
-        ThreadPool pool(1, [&](const std::string&, const ExecResult&, const JobRun&) -> FinishedJobs {
-            ++callback_count;
-            throw std::runtime_error("expected callback exception");
-        });
+        ThreadPool pool(
+            1,
+            [&](const std::string&, const ExecResult&, const JobRun&) -> FinishedJobs {
+                ++callback_count;
+                throw std::runtime_error("expected callback exception");
+            },
+            [&](const std::string&, const ExecResult&, const JobRun&) {
+                ++callback_error_count;
+                {
+                    std::lock_guard<std::mutex> lock(fallback_mutex);
+                    fallback_statuses.push_back(Job_Status::FAILED);
+                }
+                completion_latch.count_down();
+                return FinishedJobs{};
+            });
         pool.push_jobs({
             ReadyJob{&first_job, 1, 1},
             ReadyJob{&second_job, 1, 1}});
     }
 
     EXPECT_EQ(callback_count, 2);
+    EXPECT_EQ(callback_error_count, 2);
+    auto wait_future = std::async(std::launch::async, [&completion_latch]() {
+        completion_latch.wait();
+    });
+    EXPECT_EQ(
+        wait_future.wait_for(std::chrono::seconds(1)),
+        std::future_status::ready);
+    EXPECT_EQ(fallback_statuses, (std::vector<Job_Status>{
+        Job_Status::FAILED,
+        Job_Status::FAILED}));
 }
 
 TEST(Scheduler, CyclicGraphIsRejectedBeforeScheduling) {

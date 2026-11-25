@@ -54,6 +54,8 @@ class ThreadPool
 public:
     using FinishedCallback = std::function<FinishedJobs(
         const std::string& id, const ExecResult& result, const JobRun& run)>;
+    using CallbackError = std::function<FinishedJobs(
+        const std::string& id, const ExecResult& result, const JobRun& run)>;
 
 private:
     std::vector<std::thread> threads;
@@ -63,6 +65,7 @@ private:
     std::priority_queue<QueueItem,std::vector<QueueItem>,QueueItemCompare> ready_queue;
     uint64_t next_sequence_{0};
     FinishedCallback on_finished_;
+    CallbackError on_callback_error_;
 
     void push_job_locked(Job *job,int category,int user_priority)
     {
@@ -76,6 +79,7 @@ private:
     {
         while (true)
         {
+            std::vector<std::string> messages;
             std::unique_lock<std::mutex> lock(queue_mutex_);
             cv.wait(lock, [this]()
                     { return !ready_queue.empty() || stopping; });
@@ -92,13 +96,15 @@ private:
             try {
                 run->transition_to(Job_Status::RUNNING);
             } catch (const std::exception& error) {
-                std::cerr << "Job " << job->id()
-                          << " could not enter RUNNING: " << error.what() << '\n';
+                messages.push_back(
+                    "Job " + job->id() +
+                    " could not enter RUNNING: " + error.what());
                 result = ExecResult{Job_Status::FAILED, -1, error.what()};
                 should_execute = false;
             } catch (...) {
-                std::cerr << "Job " << job->id()
-                          << " could not enter RUNNING due to an unknown error\n";
+                messages.push_back(
+                    "Job " + job->id() +
+                    " could not enter RUNNING due to an unknown error");
                 result = ExecResult{Job_Status::FAILED, -1, "Unknown error entering RUNNING"};
                 should_execute = false;
             }
@@ -107,12 +113,14 @@ private:
                 try {
                     result = job->execute();
                 } catch (const std::exception& error) {
-                    std::cerr << "Job " << job->id()
-                              << " failed with an exception: " << error.what() << '\n';
+                    messages.push_back(
+                        "Job " + job->id() +
+                        " failed with an exception: " + error.what());
                     result = ExecResult{Job_Status::FAILED, -1, error.what()};
                 } catch (...) {
-                    std::cerr << "Job " << job->id()
-                              << " failed with an unknown exception\n";
+                    messages.push_back(
+                        "Job " + job->id() +
+                        " failed with an unknown exception");
                     result = ExecResult{Job_Status::FAILED, -1, "Unknown job exception"};
                 }
             }
@@ -123,18 +131,21 @@ private:
                 try {
                     run->transition_to(result.status);
                 } catch (const std::exception& error) {
-                    std::cerr << "Could not record completion for job " << job->id()
-                              << ": " << error.what() << '\n';
+                    messages.push_back(
+                        "Could not record completion for job " + job->id() +
+                        ": " + error.what());
                     result = ExecResult{Job_Status::FAILED, -1, error.what()};
                     try {
                         run->transition_to(result.status);
                     } catch (const std::exception& fallback_error) {
-                        std::cerr << "Could not mark job " << job->id()
-                                  << " as FAILED: " << fallback_error.what() << '\n';
+                        messages.push_back(
+                            "Could not mark job " + job->id() +
+                            " as FAILED: " + fallback_error.what());
                     }
                 } catch (...) {
-                    std::cerr << "Could not record completion for job " << job->id()
-                              << " due to an unknown error\n";
+                    messages.push_back(
+                        "Could not record completion for job " + job->id() +
+                        " due to an unknown error");
                     result = ExecResult{
                         Job_Status::FAILED, -1, "Unknown error recording completion"};
                 }
@@ -162,8 +173,9 @@ private:
                         const std::string message =
                             "Skipped because failed ancestor '" +
                             skipped_job.failed_ancestor + "'";
-                        std::cerr << "Job " << skipped_job.job.job->id()
-                                  << " skipped because a dependency did not succeed\n";
+                        messages.push_back(
+                            "Job " + skipped_job.job.job->id() +
+                            " skipped because a dependency did not succeed");
                         const auto newly_skipped = on_finished_(
                             skipped_job.job.job->id(),
                             ExecResult{Job_Status::SKIPPED, 0, message},
@@ -180,12 +192,81 @@ private:
                         }
                     }
                 } catch (const std::exception& error) {
-                    std::cerr << "Could not process completion for job " << job->id()
-                              << ": " << error.what() << '\n';
+                    const std::string message =
+                        "Completion callback for job " + job->id() +
+                        " threw: " + error.what();
+                    messages.push_back(message);
+                    if (on_callback_error_) {
+                        const auto fallback_jobs = on_callback_error_(
+                            job->id(),
+                            ExecResult{Job_Status::FAILED, -1, message},
+                            *run);
+                        for (const auto& ready_job : fallback_jobs.ready) {
+                            push_job_locked(
+                                ready_job.job,
+                                ready_job.category,
+                                ready_job.user_priority);
+                            ++pushed_jobs;
+                        }
+                        for (const auto& skipped_job : fallback_jobs.skipped) {
+                            JobRun skipped_run(skipped_job.job.job->id());
+                            skipped_run.transition_to(Job_Status::SKIPPED);
+                            const std::string skipped_message =
+                                "Skipped because failed ancestor '" +
+                                skipped_job.failed_ancestor + "'";
+                            const auto newly_skipped = on_finished_(
+                                skipped_job.job.job->id(),
+                                ExecResult{Job_Status::SKIPPED, 0, skipped_message},
+                                skipped_run);
+                            for (const auto& ready_job : newly_skipped.ready) {
+                                push_job_locked(
+                                    ready_job.job,
+                                    ready_job.category,
+                                    ready_job.user_priority);
+                                ++pushed_jobs;
+                            }
+                        }
+                    }
                 } catch (...) {
-                    std::cerr << "Could not process completion for job " << job->id()
-                              << " due to an unknown error\n";
+                    const std::string message =
+                        "Completion callback for job " + job->id() +
+                        " threw an unknown exception";
+                    messages.push_back(message);
+                    if (on_callback_error_) {
+                        const auto fallback_jobs = on_callback_error_(
+                            job->id(),
+                            ExecResult{Job_Status::FAILED, -1, message},
+                            *run);
+                        for (const auto& ready_job : fallback_jobs.ready) {
+                            push_job_locked(
+                                ready_job.job,
+                                ready_job.category,
+                                ready_job.user_priority);
+                            ++pushed_jobs;
+                        }
+                        for (const auto& skipped_job : fallback_jobs.skipped) {
+                            JobRun skipped_run(skipped_job.job.job->id());
+                            skipped_run.transition_to(Job_Status::SKIPPED);
+                            const std::string skipped_message =
+                                "Skipped because failed ancestor '" +
+                                skipped_job.failed_ancestor + "'";
+                            const auto newly_skipped = on_finished_(
+                                skipped_job.job.job->id(),
+                                ExecResult{Job_Status::SKIPPED, 0, skipped_message},
+                                skipped_run);
+                            for (const auto& ready_job : newly_skipped.ready) {
+                                push_job_locked(
+                                    ready_job.job,
+                                    ready_job.category,
+                                    ready_job.user_priority);
+                                ++pushed_jobs;
+                            }
+                        }
+                    }
                 }
+            }
+            for (const std::string& message : messages) {
+                std::cerr << message << '\n';
             }
             for (std::size_t i = 0; i < pushed_jobs; ++i) {
                 cv.notify_one();
@@ -194,8 +275,12 @@ private:
     }
 
 public:
-    ThreadPool(size_t num_threads, FinishedCallback on_finished)
-        : on_finished_(std::move(on_finished))
+    ThreadPool(
+        size_t num_threads,
+        FinishedCallback on_finished,
+        CallbackError on_callback_error = {})
+        : on_finished_(std::move(on_finished)),
+          on_callback_error_(std::move(on_callback_error))
     {
         try {
             for (size_t i = 0; i < num_threads; ++i) {
