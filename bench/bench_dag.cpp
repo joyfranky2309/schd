@@ -50,11 +50,14 @@ std::vector<Edge> generate_dag() {
             const std::size_t to = layer * kJobsPerLayer + offset;
             std::uniform_int_distribution<std::size_t> dependency_count(1, 3);
             const std::size_t count = dependency_count(random);
+            std::vector<std::size_t> previous_layer;
+            for (std::size_t previous = (layer - 1) * kJobsPerLayer;
+                 previous < layer * kJobsPerLayer; ++previous) {
+                previous_layer.push_back(previous);
+            }
+            std::shuffle(previous_layer.begin(), previous_layer.end(), random);
             for (std::size_t dependency = 0; dependency < count; ++dependency) {
-                std::uniform_int_distribution<std::size_t> previous(
-                    (layer - 1) * kJobsPerLayer,
-                    layer * kJobsPerLayer - 1);
-                edges.push_back(Edge{previous(random), to});
+                edges.push_back(Edge{previous_layer[dependency], to});
             }
         }
     }
