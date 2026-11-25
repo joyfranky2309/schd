@@ -7,8 +7,7 @@
 
 class Job {
 public:
-    Job(std::string id, int max_attempts)
-        : id_(std::move(id)), max_attempts_(max_attempts) {}
+    Job(std::string id, int max_attempts) : id_(std::move(id)), max_attempts_(max_attempts) {}
 
     virtual ~Job() = default; // base class with virtuals needs a virtual dtor
 

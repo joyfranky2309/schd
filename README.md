@@ -107,7 +107,28 @@ Shell example:
 }
 ```
 
-Optional QuantLib pricing example:
+Built-in CPU pricing example:
+
+```json
+{
+  "jobs": [
+    {
+      "id": "cpu-price",
+      "type": "cpu_pricing",
+      "category": "EOD",
+      "params": {
+        "face_value": 100.0,
+        "coupon_rate": 0.05,
+        "maturity_years": 5,
+        "yield": 0.05,
+        "settlement_date": "2024-01-02"
+      }
+    }
+  ]
+}
+```
+
+Optional QuantLib bond pricing example:
 
 ```json
 {
@@ -136,14 +157,14 @@ Measured on the repository machine with `hardware_concurrency: 12` on 2026-11-25
 
 | variant | workers | wall ms | jobs/sec | speedup vs 1 worker | scheduling overhead us/job |
 |---|---:|---:|---:|---:|---:|
-| no-op | 1 | 0.994 | 1006024.1 | 1.000 | 0.994 |
-| no-op | 2 | 3.119 | 320660.1 | 0.319 | 3.119 |
-| no-op | 4 | 3.495 | 286138.3 | 0.284 | 3.495 |
-| no-op | 7 | 4.746 | 210700.8 | 0.209 | 4.746 |
-| sleep-1ms | 1 | 1191.159 | 839.5 | 1.000 | - |
-| sleep-1ms | 2 | 603.610 | 1656.7 | 1.973 | - |
-| sleep-1ms | 4 | 301.706 | 3314.5 | 3.948 | - |
-| sleep-1ms | 7 | 168.688 | 5928.1 | 7.061 | - |
+| no-op | 1 | 1.625 | 615364.9 | 1.000 | 1.625 |
+| no-op | 2 | 4.228 | 236544.4 | 0.384 | 4.228 |
+| no-op | 4 | 4.807 | 208014.3 | 0.338 | 4.807 |
+| no-op | 7 | 5.837 | 171333.6 | 0.278 | 5.837 |
+| sleep-1ms | 1 | 1245.356 | 803.0 | 1.000 | - |
+| sleep-1ms | 2 | 626.845 | 1595.3 | 1.987 | - |
+| sleep-1ms | 4 | 306.114 | 3266.8 | 4.068 | - |
+| sleep-1ms | 7 | 169.549 | 5898.0 | 7.345 | - |
 
 Run it with:
 

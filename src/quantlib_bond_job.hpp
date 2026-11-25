@@ -6,15 +6,9 @@
 
 class QuantLibBondJob : public Job {
 public:
-    QuantLibBondJob(
-        std::string id,
-        double face_value,
-        double coupon_rate,
-        int maturity_years,
-        double yield,
-        std::string issue_date,
-        std::string settlement_date,
-        int max_attempts);
+    QuantLibBondJob(std::string id, double face_value, double coupon_rate, int maturity_years,
+                    double yield, std::string issue_date, std::string settlement_date,
+                    int max_attempts);
 
     ExecResult execute() override;
 

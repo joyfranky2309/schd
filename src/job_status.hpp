@@ -1,7 +1,7 @@
 #pragma once
 #include <cstdint>
 #include <string_view>
-enum class Job_Status: std::uint8_t{
+enum class Job_Status : std::uint8_t {
     PENDING,
     RUNNING,
     QUEUED,
@@ -10,4 +10,4 @@ enum class Job_Status: std::uint8_t{
     SKIPPED,
 };
 std::string_view to_string(Job_Status);
-bool can_transition(Job_Status from , Job_Status to );
+bool can_transition(Job_Status from, Job_Status to);

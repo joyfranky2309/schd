@@ -1,5 +1,4 @@
 #include <gtest/gtest.h>
-
 #include <string>
 
 #include "cpu_pricing_job.hpp"
@@ -16,7 +15,7 @@ double reported_price(const std::string& message) {
     const std::size_t end = message.find(';', value_start);
     return std::stod(message.substr(value_start, end - value_start));
 }
-}
+} // namespace
 
 TEST(CpuPricingJob, ParCouponPricesNearFaceValue) {
     CpuPricingJob job("cpu-price", 100.0, 0.05, 5, 0.05, "2024-01-02", 1);
@@ -33,14 +32,11 @@ TEST(CpuPricingJob, ParCouponPricesNearFaceValue) {
 }
 
 TEST(CpuPricingJob, LowerYieldProducesHigherPrice) {
-    CpuPricingJob lower_yield(
-        "lower-yield", 100.0, 0.05, 5, 0.04, "2024-01-02", 1);
-    CpuPricingJob higher_yield(
-        "higher-yield", 100.0, 0.05, 5, 0.05, "2024-01-02", 1);
+    CpuPricingJob lower_yield("lower-yield", 100.0, 0.05, 5, 0.04, "2024-01-02", 1);
+    CpuPricingJob higher_yield("higher-yield", 100.0, 0.05, 5, 0.05, "2024-01-02", 1);
 
-    EXPECT_GT(
-        reported_price(lower_yield.execute().message),
-        reported_price(higher_yield.execute().message));
+    EXPECT_GT(reported_price(lower_yield.execute().message),
+              reported_price(higher_yield.execute().message));
 }
 
 TEST(CpuPricingJob, RepeatedExecutionsHaveIdenticalMessages) {

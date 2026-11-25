@@ -3,16 +3,11 @@
 #include <stdexcept>
 #include <utility>
 
-JobRun::JobRun(std::string job_id)
-    : job_id_(std::move(job_id)), status_(Job_Status::PENDING) {}
+JobRun::JobRun(std::string job_id) : job_id_(std::move(job_id)), status_(Job_Status::PENDING) {}
 
-const std::string& JobRun::job_id() const noexcept {
-    return job_id_;
-}
+const std::string& JobRun::job_id() const noexcept { return job_id_; }
 
-Job_Status JobRun::status() const noexcept {
-    return status_;
-}
+Job_Status JobRun::status() const noexcept { return status_; }
 
 const std::optional<std::chrono::system_clock::time_point>& JobRun::queued_time() const noexcept {
     return queued_time_;
@@ -28,9 +23,9 @@ const std::optional<std::chrono::system_clock::time_point>& JobRun::end_time() c
 
 void JobRun::transition_to(Job_Status new_status) {
     if (!can_transition(status_, new_status)) {
-        throw std::runtime_error(
-            "Illegal job status transition from " + std::string(to_string(status_)) +
-            " to " + std::string(to_string(new_status)));
+        throw std::runtime_error("Illegal job status transition from " +
+                                 std::string(to_string(status_)) + " to " +
+                                 std::string(to_string(new_status)));
     }
 
     const auto now = std::chrono::system_clock::now();

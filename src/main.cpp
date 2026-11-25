@@ -23,8 +23,7 @@ void print_usage(std::ostream& output) {
 
 std::size_t parse_worker_count(std::string_view value) {
     std::size_t workers = 0;
-    const auto [end, error] =
-        std::from_chars(value.data(), value.data() + value.size(), workers);
+    const auto [end, error] = std::from_chars(value.data(), value.data() + value.size(), workers);
     if (error != std::errc{} || end != value.data() + value.size() || workers == 0) {
         throw std::invalid_argument("--workers must be a positive integer");
     }
@@ -53,11 +52,8 @@ int validate_command(const std::string& path) {
     return 0;
 }
 
-int run_command(
-    const std::string& path,
-    const std::optional<std::size_t>& worker_override,
-    bool verbose)
-{
+int run_command(const std::string& path, const std::optional<std::size_t>& worker_override,
+                bool verbose) {
     LoadedJobFile job_file = load_job_file(path);
     validate_acyclic(job_file);
     const std::size_t workers = worker_override.value_or(job_file.workers);
@@ -75,10 +71,8 @@ int run_command(
     scheduler.start();
     scheduler.wait();
 
-    std::cout << std::left << std::setw(24) << "ID"
-              << std::setw(12) << "STATUS"
-              << std::right << std::setw(10) << "ATTEMPTS"
-              << std::setw(16) << "DURATION_MS" << '\n';
+    std::cout << std::left << std::setw(24) << "ID" << std::setw(12) << "STATUS" << std::right
+              << std::setw(10) << "ATTEMPTS" << std::setw(16) << "DURATION_MS" << '\n';
     std::cout << std::string(62, '-') << '\n';
 
     bool all_succeeded = true;
@@ -97,10 +91,9 @@ int run_command(
                     *record.finished_at - *record.started_at);
             }
         }
-        std::cout << std::left << std::setw(24) << id
-                  << std::setw(12) << to_string(status)
-                  << std::right << std::setw(10) << attempts
-                  << std::setw(16) << duration.count() << '\n';
+        std::cout << std::left << std::setw(24) << id << std::setw(12) << to_string(status)
+                  << std::right << std::setw(10) << attempts << std::setw(16) << duration.count()
+                  << '\n';
         if (status != Job_Status::SUCCESS) {
             all_succeeded = false;
         }
@@ -108,8 +101,7 @@ int run_command(
     if (verbose) {
         for (const auto& registration : job_file.registrations) {
             const auto records = scheduler.history(registration.job->id());
-            std::cout << registration.job->id() << ": "
-                      << records.back().message << '\n';
+            std::cout << registration.job->id() << ": " << records.back().message << '\n';
         }
     }
     return all_succeeded ? 0 : 1;
@@ -157,7 +149,7 @@ int execute_cli(int argc, char* argv[]) {
     print_usage(std::cerr);
     throw std::invalid_argument("unknown command '" + std::string(command) + "'");
 }
-}
+} // namespace
 
 int main(int argc, char* argv[]) {
     try {

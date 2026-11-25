@@ -1,8 +1,7 @@
-#include <gtest/gtest.h>
-
 #include <atomic>
 #include <filesystem>
 #include <fstream>
+#include <gtest/gtest.h>
 #include <stdexcept>
 #include <string>
 #include <system_error>
@@ -18,8 +17,8 @@ public:
     explicit TemporaryJsonFile(const std::string& contents) {
         static std::atomic<unsigned int> next_id{0};
         path_ = std::filesystem::temp_directory_path() /
-            ("schd-job-file-" + std::to_string(::getpid()) + "-" +
-             std::to_string(next_id.fetch_add(1)) + ".json");
+                ("schd-job-file-" + std::to_string(::getpid()) + "-" +
+                 std::to_string(next_id.fetch_add(1)) + ".json");
         std::ofstream output(path_);
         if (!output) {
             throw std::runtime_error("could not create temporary job file");
@@ -35,9 +34,7 @@ public:
         std::filesystem::remove(path_, error);
     }
 
-    const std::filesystem::path& path() const {
-        return path_;
-    }
+    const std::filesystem::path& path() const { return path_; }
 
 private:
     std::filesystem::path path_;
@@ -51,12 +48,10 @@ void expect_invalid_cpu_pricing_params(const std::string& params) {
         static_cast<void>(load_job_file(file.path()));
         FAIL() << "Expected invalid cpu_pricing params";
     } catch (const std::runtime_error& error) {
-        EXPECT_NE(
-            std::string(error.what()).find("pricing-invalid"),
-            std::string::npos);
+        EXPECT_NE(std::string(error.what()).find("pricing-invalid"), std::string::npos);
     }
 }
-}
+} // namespace
 
 TEST(JobLoader, LoadsRegistrationsDefaultsAndIgnoresUnknownFields) {
     TemporaryJsonFile file(R"json({
@@ -96,9 +91,7 @@ TEST(JobLoader, LoadsRegistrationsDefaultsAndIgnoresUnknownFields) {
     EXPECT_EQ(loaded.jobs[1]->max_attempts(), 1);
     EXPECT_EQ(loaded.registrations[1].category, 1);
     EXPECT_EQ(loaded.registrations[1].priority, 1);
-    EXPECT_EQ(
-        loaded.registrations[1].dependencies,
-        (std::vector<std::string>{"extract"}));
+    EXPECT_EQ(loaded.registrations[1].dependencies, (std::vector<std::string>{"extract"}));
 }
 
 TEST(JobLoader, DefaultsWorkersToSeven) {
@@ -112,40 +105,39 @@ TEST(JobLoader, DefaultsWorkersToSeven) {
 }
 
 TEST(JobLoader, RejectsInvalidJobDefinitionsAndNamesTheJob) {
-    const std::vector<std::pair<std::string, std::string>> invalid_files{
-        {
-            R"json({"jobs":[
+    const std::vector<std::pair<std::string, std::string>> invalid_files{{
+                                                                             R"json({"jobs":[
                 {"id":"duplicate","type":"shell","command":"true","category":"EOD"},
                 {"id":"duplicate","type":"shell","command":"true","category":"EOD"}
             ]})json",
-            "duplicate"},
-        {
-            R"json({"jobs":[
+                                                                             "duplicate"},
+                                                                         {
+                                                                             R"json({"jobs":[
                 {"id":"unknown-dependency","type":"shell","command":"true",
                  "category":"EOD","depends_on":["missing"]}
             ]})json",
-            "unknown-dependency"},
-        {
-            R"json({"jobs":[
+                                                                             "unknown-dependency"},
+                                                                         {
+                                                                             R"json({"jobs":[
                 {"id":"unknown-type","type":"python","command":"true","category":"EOD"}
             ]})json",
-            "unknown-type"},
-        {
-            R"json({"jobs":[
+                                                                             "unknown-type"},
+                                                                         {
+                                                                             R"json({"jobs":[
                 {"id":"bad-category","type":"shell","command":"true","category":"other"}
             ]})json",
-            "bad-category"},
-        {
-            R"json({"jobs":[
+                                                                             "bad-category"},
+                                                                         {
+                                                                             R"json({"jobs":[
                 {"id":"bad-command","type":"shell","category":"EOD"}
             ]})json",
-            "bad-command"},
-        {
-            R"json({"jobs":[
+                                                                             "bad-command"},
+                                                                         {
+                                                                             R"json({"jobs":[
                 {"id":"bad-attempts","type":"shell","command":"true",
                  "category":"EOD","max_attempts":0}
             ]})json",
-            "bad-attempts"}};
+                                                                             "bad-attempts"}};
 
     for (const auto& [contents, offending_id] : invalid_files) {
         TemporaryJsonFile file(contents);
@@ -241,9 +233,7 @@ TEST(JobLoader, QuantLibBondRequiresEnabledBuild) {
     ASSERT_EQ(loaded.jobs.size(), 1U);
     const auto result = loaded.jobs.front()->execute();
     ASSERT_EQ(result.status, Job_Status::SUCCESS) << result.message;
-    EXPECT_NE(
-        result.message.find("evaluation_date=2024-01-02"),
-        std::string::npos);
+    EXPECT_NE(result.message.find("evaluation_date=2024-01-02"), std::string::npos);
     const std::size_t accrued_start = result.message.find("accrued=");
     ASSERT_NE(accrued_start, std::string::npos);
     const std::size_t accrued_value_start = accrued_start + std::string("accrued=").size();
@@ -263,25 +253,22 @@ TEST(JobLoader, QuantLibBondRequiresEnabledBuild) {
 #ifdef SCHD_WITH_QUANTLIB
 TEST(JobLoader, RejectsInvalidQuantLibIssueDatesAndNamesTheJob) {
     const std::vector<std::string> invalid_issue_dates{
-        R"json("2024-02-30")json",
-        R"json("not-a-date")json",
-        R"json("2024-01-02")json",
-        R"json("2024-01-03")json",
-        "null"};
+        R"json("2024-02-30")json", R"json("not-a-date")json", R"json("2024-01-02")json",
+        R"json("2024-01-03")json", "null"};
 
     for (const auto& issue_date : invalid_issue_dates) {
         TemporaryJsonFile file(
             R"json({"jobs":[{"id":"quantlib-issue","type":"quantlib_bond",)json"
             R"json("category":"EOD","params":{"face_value":100,"coupon_rate":0.05,)json"
             R"json("maturity_years":5,"yield":0.05,"settlement_date":"2024-01-02",)json"
-            R"json("issue_date":)json" + issue_date + "}}]}");
+            R"json("issue_date":)json" +
+            issue_date + "}}]}");
         try {
             static_cast<void>(load_job_file(file.path()));
             FAIL() << "Expected invalid issue_date: " << issue_date;
         } catch (const std::runtime_error& error) {
-            EXPECT_NE(
-                std::string(error.what()).find("quantlib-issue"),
-                std::string::npos) << error.what();
+            EXPECT_NE(std::string(error.what()).find("quantlib-issue"), std::string::npos)
+                << error.what();
         }
     }
 }

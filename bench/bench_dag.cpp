@@ -4,6 +4,7 @@
 #include <iomanip>
 #include <iostream>
 #include <memory>
+#include <numeric>
 #include <random>
 #include <string>
 #include <thread>
@@ -22,9 +23,7 @@ constexpr unsigned int kSeed = 0x5c1d5eedU;
 class NoopJob : public Job {
 public:
     explicit NoopJob(std::string id) : Job(std::move(id), 1) {}
-    ExecResult execute() override {
-        return Job_Status::SUCCESS;
-    }
+    ExecResult execute() override { return Job_Status::SUCCESS; }
 };
 
 class SleepJob : public Job {
@@ -50,11 +49,8 @@ std::vector<Edge> generate_dag() {
             const std::size_t to = layer * kJobsPerLayer + offset;
             std::uniform_int_distribution<std::size_t> dependency_count(1, 3);
             const std::size_t count = dependency_count(random);
-            std::vector<std::size_t> previous_layer;
-            for (std::size_t previous = (layer - 1) * kJobsPerLayer;
-                 previous < layer * kJobsPerLayer; ++previous) {
-                previous_layer.push_back(previous);
-            }
+            std::vector<std::size_t> previous_layer(kJobsPerLayer);
+            std::iota(previous_layer.begin(), previous_layer.end(), (layer - 1) * kJobsPerLayer);
             std::shuffle(previous_layer.begin(), previous_layer.end(), random);
             for (std::size_t dependency = 0; dependency < count; ++dependency) {
                 edges.push_back(Edge{previous_layer[dependency], to});
@@ -64,8 +60,7 @@ std::vector<Edge> generate_dag() {
     return edges;
 }
 
-template <typename JobType>
-double run_once(const std::vector<Edge>& edges, std::size_t workers) {
+template <typename JobType> double run_once(const std::vector<Edge>& edges, std::size_t workers) {
     std::vector<std::unique_ptr<JobType>> jobs;
     jobs.reserve(kJobCount);
     for (std::size_t i = 0; i < kJobCount; ++i) {
@@ -77,9 +72,8 @@ double run_once(const std::vector<Edge>& edges, std::size_t workers) {
         scheduler.add_job(job.get(), 1, 1);
     }
     for (const Edge& edge : edges) {
-        scheduler.add_dependency(
-            "job-" + std::to_string(edge.from),
-            "job-" + std::to_string(edge.to));
+        scheduler.add_dependency("job-" + std::to_string(edge.from),
+                                 "job-" + std::to_string(edge.to));
     }
 
     const auto start = std::chrono::steady_clock::now();
@@ -95,10 +89,8 @@ double median(std::vector<double> samples) {
 }
 
 template <typename JobType>
-double benchmark(
-    const std::vector<Edge>& edges,
-    std::size_t workers,
-    std::vector<double>& per_worker_ms) {
+double benchmark(const std::vector<Edge>& edges, std::size_t workers,
+                 std::vector<double>& per_worker_ms) {
     std::vector<double> samples;
     samples.reserve(5);
     for (int run = 0; run < 5; ++run) {
@@ -108,14 +100,15 @@ double benchmark(
     per_worker_ms.push_back(wall_ms);
     return wall_ms;
 }
-}
+} // namespace
 
 int main() {
     std::cout << "hardware_concurrency: " << std::thread::hardware_concurrency() << '\n';
     const auto edges = generate_dag();
     const std::vector<std::size_t> worker_counts{1, 2, 4, 7};
 
-    std::cout << "\n| variant | workers | wall ms | jobs/sec | speedup vs 1 worker | scheduling overhead us/job |\n";
+    std::cout << "\n| variant | workers | wall ms | jobs/sec | speedup vs 1 worker | scheduling "
+                 "overhead us/job |\n";
     std::cout << "|---|---:|---:|---:|---:|---:|\n";
 
     std::vector<double> noop_ms;
@@ -124,11 +117,10 @@ int main() {
         const double jobs_per_second = kJobCount * 1000.0 / wall_ms;
         const double speedup = noop_ms.front() / wall_ms;
         const double overhead_us = wall_ms * 1000.0 / kJobCount;
-        std::cout << "| no-op | " << workers << " | " << std::fixed
-                  << std::setprecision(3) << wall_ms << " | "
-                  << std::setprecision(1) << jobs_per_second << " | "
-                  << std::setprecision(3) << speedup << " | "
-                  << std::setprecision(3) << overhead_us << " |\n";
+        std::cout << "| no-op | " << workers << " | " << std::fixed << std::setprecision(3)
+                  << wall_ms << " | " << std::setprecision(1) << jobs_per_second << " | "
+                  << std::setprecision(3) << speedup << " | " << std::setprecision(3) << overhead_us
+                  << " |\n";
     }
 
     std::vector<double> sleep_ms;
@@ -136,9 +128,8 @@ int main() {
         const double wall_ms = benchmark<SleepJob>(edges, workers, sleep_ms);
         const double jobs_per_second = kJobCount * 1000.0 / wall_ms;
         const double speedup = sleep_ms.front() / wall_ms;
-        std::cout << "| sleep-1ms | " << workers << " | " << std::fixed
-                  << std::setprecision(3) << wall_ms << " | "
-                  << std::setprecision(1) << jobs_per_second << " | "
+        std::cout << "| sleep-1ms | " << workers << " | " << std::fixed << std::setprecision(3)
+                  << wall_ms << " | " << std::setprecision(1) << jobs_per_second << " | "
                   << std::setprecision(3) << speedup << " | - |\n";
     }
 

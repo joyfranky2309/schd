@@ -41,8 +41,7 @@ public:
         std::vector<std::string> ready;
         for (const auto& dependent : it->second) {
             --indegree_[dependent];
-            if (indegree_[dependent] == 0 &&
-                skipped_.find(dependent) == skipped_.end()) {
+            if (indegree_[dependent] == 0 && skipped_.find(dependent) == skipped_.end()) {
                 ready.push_back(dependent);
             }
         }
@@ -85,9 +84,7 @@ public:
         return result;
     }
 
-    bool mark_skipped(const std::string& id) {
-        return skipped_.insert(id).second;
-    }
+    bool mark_skipped(const std::string& id) { return skipped_.insert(id).second; }
 
     std::vector<std::string> dependents_of(const std::string& id) const {
         const auto it = dependents_.find(id);

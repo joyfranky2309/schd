@@ -1,4 +1,5 @@
 #include "failing_stub_job.hpp"
+
 #include <iostream>
 
 FailingStubJob::FailingStubJob(std::string id, int max_attempts)

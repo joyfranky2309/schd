@@ -1,17 +1,16 @@
-#include <gtest/gtest.h>
-
 #include <cerrno>
+#include <fcntl.h>
 #include <filesystem>
 #include <fstream>
+#include <gtest/gtest.h>
 #include <map>
 #include <sstream>
 #include <stdexcept>
 #include <string>
-#include <system_error>
 #include <sys/wait.h>
-#include <unistd.h>
-#include <fcntl.h>
+#include <system_error>
 #include <tuple>
+#include <unistd.h>
 #include <utility>
 
 namespace {
@@ -19,7 +18,7 @@ class TemporaryFile {
 public:
     TemporaryFile(const std::string& suffix, const std::string& contents) {
         path_ = std::filesystem::temp_directory_path() /
-            ("schd-cli-" + std::to_string(::getpid()) + "-" + suffix);
+                ("schd-cli-" + std::to_string(::getpid()) + "-" + suffix);
         std::ofstream output(path_);
         if (!output) {
             throw std::runtime_error("could not create temporary CLI file");
@@ -35,9 +34,7 @@ public:
         std::filesystem::remove(path_, error);
     }
 
-    const std::filesystem::path& path() const {
-        return path_;
-    }
+    const std::filesystem::path& path() const { return path_; }
 
 private:
     std::filesystem::path path_;
@@ -48,46 +45,27 @@ struct ProcessResult {
     std::string output;
 };
 
-ProcessResult run_cli(
-    const std::filesystem::path& input_path,
-    const std::filesystem::path& output_path,
-    bool verbose = false)
-{
+ProcessResult run_cli(const std::filesystem::path& input_path,
+                      const std::filesystem::path& output_path, bool verbose = false) {
     const pid_t child_pid = ::fork();
     if (child_pid == -1) {
         throw std::runtime_error("fork failed");
     }
     if (child_pid == 0) {
-        const int output_fd = ::open(
-            output_path.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0600);
+        const int output_fd = ::open(output_path.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0600);
         const int error_fd = ::open("/dev/null", O_WRONLY);
-        if (output_fd == -1 ||
-            ::dup2(output_fd, STDOUT_FILENO) == -1 ||
-            error_fd == -1 ||
+        if (output_fd == -1 || ::dup2(output_fd, STDOUT_FILENO) == -1 || error_fd == -1 ||
             ::dup2(error_fd, STDERR_FILENO) == -1) {
             ::_exit(126);
         }
         ::close(output_fd);
         ::close(error_fd);
         if (verbose) {
-            ::execl(
-                SCHD_CLI_PATH,
-                SCHD_CLI_PATH,
-                "run",
-                input_path.c_str(),
-                "--workers",
-                "2",
-                "--verbose",
-                static_cast<char*>(nullptr));
+            ::execl(SCHD_CLI_PATH, SCHD_CLI_PATH, "run", input_path.c_str(), "--workers", "2",
+                    "--verbose", static_cast<char*>(nullptr));
         } else {
-            ::execl(
-                SCHD_CLI_PATH,
-                SCHD_CLI_PATH,
-                "run",
-                input_path.c_str(),
-                "--workers",
-                "2",
-                static_cast<char*>(nullptr));
+            ::execl(SCHD_CLI_PATH, SCHD_CLI_PATH, "run", input_path.c_str(), "--workers", "2",
+                    static_cast<char*>(nullptr));
         }
         ::_exit(127);
     }
@@ -109,12 +87,11 @@ ProcessResult run_cli(
     }
     return ProcessResult{WEXITSTATUS(status), output.str()};
 }
-}
+} // namespace
 
 TEST(Cli, RunReportsFailureAndSkippedDependentWithExitOne) {
-    TemporaryFile input(
-        "input.json",
-        R"json({
+    TemporaryFile input("input.json",
+                        R"json({
             "workers": 1,
             "jobs": [
                 {"id":"failed","type":"shell","command":"exit 3","category":"EOD"},
@@ -161,9 +138,8 @@ TEST(Cli, RunReportsFailureAndSkippedDependentWithExitOne) {
 }
 
 TEST(Cli, VerboseRunPrintsCpuPricingMessage) {
-    TemporaryFile input(
-        "pricing-input.json",
-        R"json({
+    TemporaryFile input("pricing-input.json",
+                        R"json({
             "jobs": [{
                 "id": "cpu-price",
                 "type": "cpu_pricing",
@@ -186,9 +162,8 @@ TEST(Cli, VerboseRunPrintsCpuPricingMessage) {
 
 #ifdef SCHD_WITH_QUANTLIB
 TEST(Cli, VerboseRunPrintsQuantLibBondMessage) {
-    TemporaryFile input(
-        "quantlib-input.json",
-        R"json({
+    TemporaryFile input("quantlib-input.json",
+                        R"json({
             "jobs": [{
                 "id": "bond-price",
                 "type": "quantlib_bond",

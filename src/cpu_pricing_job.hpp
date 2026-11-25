@@ -6,14 +6,8 @@
 
 class CpuPricingJob : public Job {
 public:
-    CpuPricingJob(
-        std::string id,
-        double face_value,
-        double coupon_rate,
-        int maturity_years,
-        double yield,
-        std::string settlement_date,
-        int max_attempts);
+    CpuPricingJob(std::string id, double face_value, double coupon_rate, int maturity_years,
+                  double yield, std::string settlement_date, int max_attempts);
 
     ExecResult execute() override;
 

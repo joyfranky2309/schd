@@ -1,5 +1,4 @@
 #include <gtest/gtest.h>
-
 #include <vector>
 
 #include "dag.hpp"
@@ -36,9 +35,7 @@ TEST(DAG, TransitiveDependentsAreReturnedOnce) {
     dag.add_edge("job-B", "job-C");
     dag.add_edge("job-C", "job-D");
 
-    EXPECT_EQ(
-        dag.transitive_dependents("job-A"),
-        (std::vector<std::string>{"job-C", "job-D"}));
+    EXPECT_EQ(dag.transitive_dependents("job-A"), (std::vector<std::string>{"job-C", "job-D"}));
 }
 
 TEST(DAG, FinishedJobsNeverReleaseSkippedDependents) {

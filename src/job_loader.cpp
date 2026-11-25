@@ -7,14 +7,13 @@
 #include <cstdint>
 #include <fstream>
 #include <limits>
+#include <nlohmann/json.hpp>
 #include <optional>
 #include <stdexcept>
 #include <string>
 #include <string_view>
 #include <unordered_set>
 #include <utility>
-
-#include <nlohmann/json.hpp>
 
 #include "cpu_pricing_job.hpp"
 #include "shell_job.hpp"
@@ -63,12 +62,8 @@ std::string required_string(const Json& value, const char* field, const std::str
     return it->get<std::string>();
 }
 
-int optional_integer(
-    const Json& value,
-    const char* field,
-    int default_value,
-    const std::string& id)
-{
+int optional_integer(const Json& value, const char* field, int default_value,
+                     const std::string& id) {
     const auto it = value.find(field);
     if (it == value.end()) {
         return default_value;
@@ -84,8 +79,7 @@ int optional_integer(
         return static_cast<int>(number);
     }
     const std::int64_t number = it->get<std::int64_t>();
-    if (number < std::numeric_limits<int>::min() ||
-        number > std::numeric_limits<int>::max()) {
+    if (number < std::numeric_limits<int>::min() || number > std::numeric_limits<int>::max()) {
         job_error(id, std::string("'") + field + "' is outside the supported range");
     }
     return static_cast<int>(number);
@@ -103,15 +97,12 @@ double required_number(const Json& value, const char* field, const std::string& 
     return number;
 }
 
-std::optional<std::chrono::year_month_day> parse_calendar_date(
-    const std::string& value)
-{
+std::optional<std::chrono::year_month_day> parse_calendar_date(const std::string& value) {
     if (value.size() != 10 || value[4] != '-' || value[7] != '-') {
         return std::nullopt;
     }
     for (std::size_t index = 0; index < value.size(); ++index) {
-        if (index != 4 && index != 7 &&
-            (value[index] < '0' || value[index] > '9')) {
+        if (index != 4 && index != 7 && (value[index] < '0' || value[index] > '9')) {
             return std::nullopt;
         }
     }
@@ -120,20 +111,17 @@ std::optional<std::chrono::year_month_day> parse_calendar_date(
     unsigned int month_value = 0;
     unsigned int day_value = 0;
     const auto parse_part = [](std::string_view part, auto& result) {
-        const auto [end, error] =
-            std::from_chars(part.data(), part.data() + part.size(), result);
+        const auto [end, error] = std::from_chars(part.data(), part.data() + part.size(), result);
         return error == std::errc{} && end == part.data() + part.size();
     };
     if (!parse_part(std::string_view(value).substr(0, 4), year_value) ||
         !parse_part(std::string_view(value).substr(5, 2), month_value) ||
-        !parse_part(std::string_view(value).substr(8, 2), day_value) ||
-        year_value == 0) {
+        !parse_part(std::string_view(value).substr(8, 2), day_value) || year_value == 0) {
         return std::nullopt;
     }
-    const std::chrono::year_month_day date{
-        std::chrono::year{year_value},
-        std::chrono::month{month_value},
-        std::chrono::day{day_value}};
+    const std::chrono::year_month_day date{std::chrono::year{year_value},
+                                           std::chrono::month{month_value},
+                                           std::chrono::day{day_value}};
     if (!date.ok()) {
         return std::nullopt;
     }
@@ -146,25 +134,20 @@ std::string format_calendar_date(const std::chrono::year_month_day& date) {
     const auto two_digits = [](unsigned int value) {
         return value < 10 ? "0" + std::to_string(value) : std::to_string(value);
     };
-    return year + "-" + two_digits(static_cast<unsigned int>(date.month())) +
-        "-" + two_digits(static_cast<unsigned int>(date.day()));
+    return year + "-" + two_digits(static_cast<unsigned int>(date.month())) + "-" +
+           two_digits(static_cast<unsigned int>(date.day()));
 }
 
-std::string default_issue_date(
-    const std::chrono::year_month_day& settlement_date,
-    const std::string& id)
-{
+std::string default_issue_date(const std::chrono::year_month_day& settlement_date,
+                               const std::string& id) {
     const std::chrono::year_month issue_month =
-        (settlement_date.year() / settlement_date.month()) -
-        std::chrono::months{3};
-    const std::chrono::day final_day{
-        std::chrono::year_month_day_last{
-            issue_month.year(),
-            std::chrono::month_day_last{issue_month.month()}}.day()};
-    const std::chrono::year_month_day issue_date{
+        (settlement_date.year() / settlement_date.month()) - std::chrono::months{3};
+    const std::chrono::day final_day{std::chrono::year_month_day_last{
         issue_month.year(),
-        issue_month.month(),
-        std::min(settlement_date.day(), final_day)};
+        std::chrono::month_day_last{
+            issue_month.month()}}.day()};
+    const std::chrono::year_month_day issue_date{issue_month.year(), issue_month.month(),
+                                                 std::min(settlement_date.day(), final_day)};
     if (!issue_date.ok() || issue_date.year() <= std::chrono::year{0}) {
         job_error(id, "'params.settlement_date' is too early to derive 'params.issue_date'");
     }
@@ -188,14 +171,13 @@ std::size_t workers_value(const Json& value) {
         return static_cast<std::size_t>(number);
     }
     const std::int64_t number = workers.get<std::int64_t>();
-    if (number < 1 ||
-        static_cast<std::uint64_t>(number) >
-            static_cast<std::uint64_t>(std::numeric_limits<std::size_t>::max())) {
+    if (number < 1 || static_cast<std::uint64_t>(number) >
+                          static_cast<std::uint64_t>(std::numeric_limits<std::size_t>::max())) {
         throw std::runtime_error("'workers' must be a positive integer");
     }
     return static_cast<std::size_t>(number);
 }
-}
+} // namespace
 
 LoadedJobFile load_job_file(const std::filesystem::path& path) {
     std::ifstream input(path);
@@ -207,8 +189,8 @@ LoadedJobFile load_job_file(const std::filesystem::path& path) {
     try {
         input >> document;
     } catch (const Json::exception& error) {
-        throw std::runtime_error(
-            "Invalid JSON in job file '" + path.string() + "': " + error.what());
+        throw std::runtime_error("Invalid JSON in job file '" + path.string() +
+                                 "': " + error.what());
     }
 
     if (!document.is_object()) {
@@ -272,8 +254,7 @@ LoadedJobFile load_job_file(const std::filesystem::path& path) {
                 !(*params_it)["maturity_years"].is_number_integer()) {
                 job_error(actual_id, "'params.maturity_years' must be an integer");
             }
-            maturity_years = optional_integer(
-                *params_it, "maturity_years", 1, actual_id);
+            maturity_years = optional_integer(*params_it, "maturity_years", 1, actual_id);
             yield = required_number(*params_it, "yield", actual_id);
             if (face_value <= 0.0) {
                 job_error(actual_id, "'params.face_value' must be positive");
@@ -294,12 +275,10 @@ LoadedJobFile load_job_file(const std::filesystem::path& path) {
                 }
                 settlement_date = settlement_it->get<std::string>();
             }
-            const auto settlement_calendar_date =
-                parse_calendar_date(settlement_date);
+            const auto settlement_calendar_date = parse_calendar_date(settlement_date);
             if (!settlement_calendar_date) {
-                job_error(
-                    actual_id,
-                    "'params.settlement_date' must be a real date in YYYY-MM-DD form");
+                job_error(actual_id,
+                          "'params.settlement_date' must be a real date in YYYY-MM-DD form");
             }
             if (type == "quantlib_bond") {
                 const auto issue_it = params_it->find("issue_date");
@@ -314,14 +293,12 @@ LoadedJobFile load_job_file(const std::filesystem::path& path) {
                     issue_date = issue_it->get<std::string>();
                     issue_calendar_date = parse_calendar_date(issue_date);
                     if (!issue_calendar_date) {
-                        job_error(
-                            actual_id,
-                            "'params.issue_date' must be a real date in YYYY-MM-DD form");
+                        job_error(actual_id,
+                                  "'params.issue_date' must be a real date in YYYY-MM-DD form");
                     }
                 }
-                if (!issue_calendar_date ||
-                    std::chrono::sys_days{*issue_calendar_date} >=
-                        std::chrono::sys_days{*settlement_calendar_date}) {
+                if (!issue_calendar_date || std::chrono::sys_days{*issue_calendar_date} >=
+                                                std::chrono::sys_days{*settlement_calendar_date}) {
                     job_error(
                         actual_id,
                         "'params.issue_date' must be strictly before 'params.settlement_date'");
@@ -359,28 +336,15 @@ LoadedJobFile load_job_file(const std::filesystem::path& path) {
             }
         }
 
-        parsed_jobs.push_back(ParsedJob{
-            actual_id,
-            type,
-            command,
-            issue_date,
-            settlement_date,
-            face_value,
-            coupon_rate,
-            maturity_years,
-            yield,
-            category,
-            priority,
-            max_attempts,
-            std::move(dependencies)});
+        parsed_jobs.push_back(ParsedJob{actual_id, type, command, issue_date, settlement_date,
+                                        face_value, coupon_rate, maturity_years, yield, category,
+                                        priority, max_attempts, std::move(dependencies)});
     }
 
     for (const auto& parsed_job : parsed_jobs) {
         for (const auto& dependency : parsed_job.dependencies) {
             if (ids.find(dependency) == ids.end()) {
-                job_error(
-                    parsed_job.id,
-                    "depends on unknown job '" + dependency + "'");
+                job_error(parsed_job.id, "depends on unknown job '" + dependency + "'");
             }
         }
     }
@@ -392,35 +356,23 @@ LoadedJobFile load_job_file(const std::filesystem::path& path) {
     for (const auto& parsed_job : parsed_jobs) {
         std::unique_ptr<Job> job;
         if (parsed_job.type == "shell") {
-            job = std::make_unique<ShellJob>(
-                parsed_job.id, parsed_job.command, parsed_job.max_attempts);
+            job = std::make_unique<ShellJob>(parsed_job.id, parsed_job.command,
+                                             parsed_job.max_attempts);
         } else if (parsed_job.type == "cpu_pricing") {
-            job = std::make_unique<CpuPricingJob>(
-                parsed_job.id,
-                parsed_job.face_value,
-                parsed_job.coupon_rate,
-                parsed_job.maturity_years,
-                parsed_job.yield,
-                parsed_job.settlement_date,
-                parsed_job.max_attempts);
+            job = std::make_unique<CpuPricingJob>(parsed_job.id, parsed_job.face_value,
+                                                  parsed_job.coupon_rate, parsed_job.maturity_years,
+                                                  parsed_job.yield, parsed_job.settlement_date,
+                                                  parsed_job.max_attempts);
 #ifdef SCHD_WITH_QUANTLIB
         } else {
             job = std::make_unique<QuantLibBondJob>(
-                parsed_job.id,
-                parsed_job.face_value,
-                parsed_job.coupon_rate,
-                parsed_job.maturity_years,
-                parsed_job.yield,
-                parsed_job.issue_date,
-                parsed_job.settlement_date,
-                parsed_job.max_attempts);
+                parsed_job.id, parsed_job.face_value, parsed_job.coupon_rate,
+                parsed_job.maturity_years, parsed_job.yield, parsed_job.issue_date,
+                parsed_job.settlement_date, parsed_job.max_attempts);
 #endif
         }
         loaded.registrations.push_back(JobRegistration{
-            job.get(),
-            parsed_job.category,
-            parsed_job.priority,
-            parsed_job.dependencies});
+            job.get(), parsed_job.category, parsed_job.priority, parsed_job.dependencies});
         loaded.jobs.push_back(std::move(job));
     }
     return loaded;

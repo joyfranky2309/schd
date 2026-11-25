@@ -1,5 +1,4 @@
 #include <gtest/gtest.h>
-
 #include <stdexcept>
 
 #include "failing_stub_job.hpp"
@@ -14,7 +13,7 @@ JobRun execute_job(Job& job) {
     run.transition_to(job.execute().status);
     return run;
 }
-}
+} // namespace
 
 TEST(JobRun, SuccessfulJobEndsInSuccessWithTimestamps) {
     StubJob successful_job("job-1", 3);

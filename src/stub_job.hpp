@@ -1,14 +1,13 @@
 #pragma once
 
 #include <functional>
+
 #include "job.hpp"
 
 class StubJob : public Job {
 public:
-    StubJob(
-        std::string id,
-        int max_attempts,
-        std::function<void(const std::string&)> on_execute = {});
+    StubJob(std::string id, int max_attempts,
+            std::function<void(const std::string&)> on_execute = {});
     ExecResult execute() override;
 
 private:

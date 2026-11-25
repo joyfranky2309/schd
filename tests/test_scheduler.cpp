@@ -1,11 +1,10 @@
-#include <gtest/gtest.h>
-
 #include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
 #include <cstddef>
 #include <functional>
+#include <gtest/gtest.h>
 #include <iostream>
 #include <memory>
 #include <mutex>
@@ -25,33 +24,24 @@ class ThrowingStubJob : public Job {
 public:
     explicit ThrowingStubJob(std::string id) : Job(std::move(id), 1) {}
 
-    ExecResult execute() override {
-        throw std::runtime_error("expected test exception");
-    }
+    ExecResult execute() override { throw std::runtime_error("expected test exception"); }
 };
 
 class ResultSequenceJob : public Job {
 public:
-    ResultSequenceJob(
-        std::string id,
-        int max_attempts,
-        std::function<ExecResult(int)> result_for_attempt)
-        : Job(std::move(id), max_attempts),
-          result_for_attempt_(std::move(result_for_attempt)) {}
+    ResultSequenceJob(std::string id, int max_attempts,
+                      std::function<ExecResult(int)> result_for_attempt)
+        : Job(std::move(id), max_attempts), result_for_attempt_(std::move(result_for_attempt)) {}
 
-    ExecResult execute() override {
-        return result_for_attempt_(execution_count_.fetch_add(1));
-    }
+    ExecResult execute() override { return result_for_attempt_(execution_count_.fetch_add(1)); }
 
-    int execution_count() const {
-        return execution_count_.load();
-    }
+    int execution_count() const { return execution_count_.load(); }
 
 private:
     std::function<ExecResult(int)> result_for_attempt_;
     std::atomic<int> execution_count_{0};
 };
-}
+} // namespace
 
 TEST(Scheduler, DependencyOrderIsRespectedAcrossConcurrentRuns) {
     for (int iteration = 0; iteration < 30; ++iteration) {
@@ -137,20 +127,18 @@ TEST(Scheduler, PriorityOrderingPreservesCategoryAndInsertionPriority) {
         EXPECT_THROW(scheduler.add_dependency("job-A", "job-B"), std::logic_error);
     }
 
-    EXPECT_EQ(priority_order, (std::vector<std::string>{"job-C", "job-B", "job-E", "job-A", "job-D"}));
+    EXPECT_EQ(priority_order,
+              (std::vector<std::string>{"job-C", "job-B", "job-E", "job-A", "job-D"}));
 }
 
 TEST(Scheduler, TwentyEqualPriorityJobsRunInRegistrationOrder) {
     std::vector<std::string> execution_order;
-    auto record_execution = [&](const std::string& id) {
-        execution_order.push_back(id);
-    };
+    auto record_execution = [&](const std::string& id) { execution_order.push_back(id); };
 
     std::vector<std::unique_ptr<StubJob>> jobs;
     jobs.reserve(20);
     for (int i = 0; i < 20; ++i) {
-        jobs.push_back(std::make_unique<StubJob>(
-            "job-" + std::to_string(i), 1, record_execution));
+        jobs.push_back(std::make_unique<StubJob>("job-" + std::to_string(i), 1, record_execution));
     }
 
     std::vector<std::string> expected_order;
@@ -219,9 +207,8 @@ TEST(Scheduler, RetriesFailuresUntilSuccessAndRunsDependentsOnce) {
     std::atomic<int> dependent_execution_count{0};
     std::atomic<bool> dependent_started_after_success{false};
     ResultSequenceJob retrying_job("retrying-job", 3, [](int attempt) {
-        return attempt < 2
-            ? ExecResult{Job_Status::FAILED, 7, "retry"}
-            : ExecResult{Job_Status::SUCCESS};
+        return attempt < 2 ? ExecResult{Job_Status::FAILED, 7, "retry"}
+                           : ExecResult{Job_Status::SUCCESS};
     });
     StubJob dependent_job("retry-dependent", 1, [&](const std::string&) {
         ++dependent_execution_count;
@@ -282,15 +269,12 @@ TEST(Scheduler, ExhaustedRetriesFailPermanentlyAndRecordSkippedAncestor) {
     EXPECT_FALSE(skipped_history[0].queued_at.has_value());
     EXPECT_FALSE(skipped_history[0].started_at.has_value());
     EXPECT_TRUE(skipped_history[0].finished_at.has_value());
-    EXPECT_NE(
-        skipped_history[0].message.find(always_failing_job.id()),
-        std::string::npos);
+    EXPECT_NE(skipped_history[0].message.find(always_failing_job.id()), std::string::npos);
 }
 
 TEST(Scheduler, MaxAttemptsOneDoesNotRetry) {
-    ResultSequenceJob failing_job("single-attempt-job", 1, [](int) {
-        return ExecResult{Job_Status::FAILED};
-    });
+    ResultSequenceJob failing_job("single-attempt-job", 1,
+                                  [](int) { return ExecResult{Job_Status::FAILED}; });
 
     Scheduler scheduler(1);
     scheduler.add_job(&failing_job, 1, 1);
@@ -306,14 +290,11 @@ TEST(Scheduler, MaxAttemptsOneDoesNotRetry) {
 
 TEST(Scheduler, AttemptNumbersAreUniqueAcrossRepeatedRetries) {
     for (int iteration = 0; iteration < 50; ++iteration) {
-        ResultSequenceJob retrying_job(
-            "numbered-job-" + std::to_string(iteration),
-            3,
-            [](int attempt) {
-                return attempt < 2
-                    ? ExecResult{Job_Status::FAILED}
-                    : ExecResult{Job_Status::SUCCESS};
-            });
+        ResultSequenceJob retrying_job("numbered-job-" + std::to_string(iteration), 3,
+                                       [](int attempt) {
+                                           return attempt < 2 ? ExecResult{Job_Status::FAILED}
+                                                              : ExecResult{Job_Status::SUCCESS};
+                                       });
         Scheduler scheduler(2);
         scheduler.add_job(&retrying_job, 1, 1);
         scheduler.start();
@@ -366,15 +347,10 @@ TEST(Scheduler, MixedChainRunSkipsDependentsAndKeepsIndependentJobRunning) {
     for (int iteration = 0; iteration < 50; ++iteration) {
         std::vector<std::string> executed_jobs;
         FailingStubJob job_a("job-A", 1);
-        StubJob job_b("job-B", 1, [&](const std::string& id) {
-            executed_jobs.push_back(id);
-        });
-        StubJob job_c("job-C", 1, [&](const std::string& id) {
-            executed_jobs.push_back(id);
-        });
-        StubJob independent_job("job-E", 1, [&](const std::string& id) {
-            executed_jobs.push_back(id);
-        });
+        StubJob job_b("job-B", 1, [&](const std::string& id) { executed_jobs.push_back(id); });
+        StubJob job_c("job-C", 1, [&](const std::string& id) { executed_jobs.push_back(id); });
+        StubJob independent_job("job-E", 1,
+                                [&](const std::string& id) { executed_jobs.push_back(id); });
 
         Scheduler scheduler(3);
         scheduler.add_job(&job_a, 1, 1);
@@ -398,9 +374,7 @@ TEST(Scheduler, DiamondSkipsSharedDependentEvenWhenOtherParentSucceeds) {
     std::atomic<int> dependent_execution_count{0};
     FailingStubJob job_a("job-A", 1);
     StubJob job_b("job-B", 1);
-    StubJob job_c("job-C", 1, [&](const std::string&) {
-        ++dependent_execution_count;
-    });
+    StubJob job_c("job-C", 1, [&](const std::string&) { ++dependent_execution_count; });
 
     Scheduler scheduler(2);
     scheduler.add_job(&job_a, 1, 1);
@@ -424,10 +398,9 @@ TEST(Scheduler, FailureSkipsWideFanOutExactlyOnce) {
     std::vector<std::unique_ptr<StubJob>> dependents;
     dependents.reserve(dependent_count);
     for (int i = 0; i < dependent_count; ++i) {
-        dependents.push_back(std::make_unique<StubJob>(
-            "dependent-" + std::to_string(i),
-            1,
-            [&](const std::string&) { ++dependent_execution_count; }));
+        dependents.push_back(
+            std::make_unique<StubJob>("dependent-" + std::to_string(i), 1,
+                                      [&](const std::string&) { ++dependent_execution_count; }));
     }
 
     Scheduler scheduler(4);
@@ -487,27 +460,19 @@ TEST(Scheduler, CallbackExceptionsDoNotHangWaitOrTerminateWorkerThreads) {
                 ++callback_error_count;
                 {
                     std::lock_guard<std::mutex> lock(fallback_mutex);
-                    fallback_history.push_back(RunRecord{
-                        id,
-                        1,
-                        Job_Status::FAILED,
-                        run.queued_time(),
-                        run.start_time(),
-                        run.end_time(),
-                        result.exit_code,
-                        result.message});
+                    fallback_history.push_back(
+                        RunRecord{id, 1, Job_Status::FAILED, run.queued_time(), run.start_time(),
+                                  run.end_time(), result.exit_code, result.message});
                     ++completed_callbacks;
                 }
                 completion_condition.notify_one();
                 return FinishedJobs{};
             });
-        pool.push_jobs({
-            ReadyJob{&first_job, 1, 1},
-            ReadyJob{&second_job, 1, 1}});
+        pool.push_jobs({ReadyJob{&first_job, 1, 1}, ReadyJob{&second_job, 1, 1}});
 
         std::unique_lock<std::mutex> lock(fallback_mutex);
-        EXPECT_TRUE(completion_condition.wait_for(
-            lock, std::chrono::seconds(1), [&completed_callbacks]() {
+        EXPECT_TRUE(
+            completion_condition.wait_for(lock, std::chrono::seconds(1), [&completed_callbacks]() {
                 return completed_callbacks == 2;
             }));
     }
