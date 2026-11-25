@@ -3,13 +3,14 @@
 #include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <condition_variable>
 #include <cstddef>
 #include <functional>
-#include <future>
-#include <latch>
+#include <iostream>
 #include <memory>
 #include <mutex>
 #include <random>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <thread>
@@ -464,14 +465,17 @@ TEST(ThreadPool, ThrowingJobPreservesExceptionMessageInResult) {
     EXPECT_EQ(observed_result.message, "expected test exception");
 }
 
-TEST(Scheduler, CallbackExceptionsDoNotTerminateWorkerThreads) {
+TEST(Scheduler, CallbackExceptionsDoNotHangWaitOrTerminateWorkerThreads) {
     StubJob first_job("callback-exception-job-1", 1);
     StubJob second_job("callback-exception-job-2", 1);
     int callback_count = 0;
     int callback_error_count = 0;
-    std::latch completion_latch(2);
-    std::vector<Job_Status> fallback_statuses;
+    std::vector<RunRecord> fallback_history;
     std::mutex fallback_mutex;
+    std::condition_variable completion_condition;
+    std::size_t completed_callbacks = 0;
+    std::ostringstream error_output;
+    std::streambuf* previous_error_buffer = std::cerr.rdbuf(error_output.rdbuf());
     {
         ThreadPool pool(
             1,
@@ -479,31 +483,53 @@ TEST(Scheduler, CallbackExceptionsDoNotTerminateWorkerThreads) {
                 ++callback_count;
                 throw std::runtime_error("expected callback exception");
             },
-            [&](const std::string&, const ExecResult&, const JobRun&) {
+            [&](const std::string& id, const ExecResult& result, const JobRun& run) {
                 ++callback_error_count;
                 {
                     std::lock_guard<std::mutex> lock(fallback_mutex);
-                    fallback_statuses.push_back(Job_Status::FAILED);
+                    fallback_history.push_back(RunRecord{
+                        id,
+                        1,
+                        Job_Status::FAILED,
+                        run.queued_time(),
+                        run.start_time(),
+                        run.end_time(),
+                        result.exit_code,
+                        result.message});
+                    ++completed_callbacks;
                 }
-                completion_latch.count_down();
+                completion_condition.notify_one();
                 return FinishedJobs{};
             });
         pool.push_jobs({
             ReadyJob{&first_job, 1, 1},
             ReadyJob{&second_job, 1, 1}});
+
+        std::unique_lock<std::mutex> lock(fallback_mutex);
+        EXPECT_TRUE(completion_condition.wait_for(
+            lock, std::chrono::seconds(1), [&completed_callbacks]() {
+                return completed_callbacks == 2;
+            }));
     }
+    std::cerr.rdbuf(previous_error_buffer);
 
     EXPECT_EQ(callback_count, 2);
     EXPECT_EQ(callback_error_count, 2);
-    auto wait_future = std::async(std::launch::async, [&completion_latch]() {
-        completion_latch.wait();
-    });
-    EXPECT_EQ(
-        wait_future.wait_for(std::chrono::seconds(1)),
-        std::future_status::ready);
-    EXPECT_EQ(fallback_statuses, (std::vector<Job_Status>{
-        Job_Status::FAILED,
-        Job_Status::FAILED}));
+    ASSERT_EQ(fallback_history.size(), 2U);
+    EXPECT_EQ(fallback_history[0].job_id, first_job.id());
+    EXPECT_EQ(fallback_history[0].status, Job_Status::FAILED);
+    EXPECT_EQ(fallback_history[1].job_id, second_job.id());
+    EXPECT_EQ(fallback_history[1].status, Job_Status::FAILED);
+
+    const std::string logged_errors = error_output.str();
+    const std::string exception_message = "threw: expected callback exception";
+    std::size_t log_count = 0;
+    for (std::size_t position = 0;
+         (position = logged_errors.find(exception_message, position)) != std::string::npos;
+         position += exception_message.size()) {
+        ++log_count;
+    }
+    EXPECT_EQ(log_count, 2U);
 }
 
 TEST(Scheduler, CyclicGraphIsRejectedBeforeScheduling) {
