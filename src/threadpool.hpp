@@ -76,6 +76,46 @@ private:
         ready_queue.push(QueueItem{job, std::move(run), category, user_priority, seq});
     }
 
+    void recover_from_callback_error(const std::string& id, const std::string& message,
+                                     const JobRun& run, std::vector<std::string>& messages,
+                                     std::size_t& pushed_jobs) {
+        messages.push_back(message);
+        if (!on_callback_error_) {
+            return;
+        }
+
+        FinishedJobs fallback_jobs;
+        try {
+            fallback_jobs =
+                on_callback_error_(id, ExecResult{Job_Status::FAILED, -1, message}, run);
+        } catch (const std::exception& error) {
+            messages.push_back("Callback error handler for job " + id + " threw: " + error.what());
+            return;
+        } catch (...) {
+            messages.push_back("Callback error handler for job " + id +
+                               " threw an unknown exception");
+            return;
+        }
+
+        for (const auto& ready_job : fallback_jobs.ready) {
+            push_job_locked(ready_job.job, ready_job.category, ready_job.user_priority);
+            ++pushed_jobs;
+        }
+        for (const auto& skipped_job : fallback_jobs.skipped) {
+            JobRun skipped_run(skipped_job.job.job->id());
+            skipped_run.transition_to(Job_Status::SKIPPED);
+            const std::string skipped_message =
+                "Skipped because failed ancestor '" + skipped_job.failed_ancestor + "'";
+            const auto newly_skipped =
+                on_finished_(skipped_job.job.job->id(),
+                             ExecResult{Job_Status::SKIPPED, 0, skipped_message}, skipped_run);
+            for (const auto& ready_job : newly_skipped.ready) {
+                push_job_locked(ready_job.job, ready_job.category, ready_job.user_priority);
+                ++pushed_jobs;
+            }
+        }
+    }
+
     void worker_loop() {
         while (true) {
             std::vector<std::string> messages;
@@ -178,59 +218,11 @@ private:
                 } catch (const std::exception& error) {
                     const std::string message =
                         "Completion callback for job " + job->id() + " threw: " + error.what();
-                    messages.push_back(message);
-                    if (on_callback_error_) {
-                        const auto fallback_jobs = on_callback_error_(
-                            job->id(), ExecResult{Job_Status::FAILED, -1, message}, *run);
-                        for (const auto& ready_job : fallback_jobs.ready) {
-                            push_job_locked(ready_job.job, ready_job.category,
-                                            ready_job.user_priority);
-                            ++pushed_jobs;
-                        }
-                        for (const auto& skipped_job : fallback_jobs.skipped) {
-                            JobRun skipped_run(skipped_job.job.job->id());
-                            skipped_run.transition_to(Job_Status::SKIPPED);
-                            const std::string skipped_message =
-                                "Skipped because failed ancestor '" + skipped_job.failed_ancestor +
-                                "'";
-                            const auto newly_skipped = on_finished_(
-                                skipped_job.job.job->id(),
-                                ExecResult{Job_Status::SKIPPED, 0, skipped_message}, skipped_run);
-                            for (const auto& ready_job : newly_skipped.ready) {
-                                push_job_locked(ready_job.job, ready_job.category,
-                                                ready_job.user_priority);
-                                ++pushed_jobs;
-                            }
-                        }
-                    }
+                    recover_from_callback_error(job->id(), message, *run, messages, pushed_jobs);
                 } catch (...) {
                     const std::string message =
                         "Completion callback for job " + job->id() + " threw an unknown exception";
-                    messages.push_back(message);
-                    if (on_callback_error_) {
-                        const auto fallback_jobs = on_callback_error_(
-                            job->id(), ExecResult{Job_Status::FAILED, -1, message}, *run);
-                        for (const auto& ready_job : fallback_jobs.ready) {
-                            push_job_locked(ready_job.job, ready_job.category,
-                                            ready_job.user_priority);
-                            ++pushed_jobs;
-                        }
-                        for (const auto& skipped_job : fallback_jobs.skipped) {
-                            JobRun skipped_run(skipped_job.job.job->id());
-                            skipped_run.transition_to(Job_Status::SKIPPED);
-                            const std::string skipped_message =
-                                "Skipped because failed ancestor '" + skipped_job.failed_ancestor +
-                                "'";
-                            const auto newly_skipped = on_finished_(
-                                skipped_job.job.job->id(),
-                                ExecResult{Job_Status::SKIPPED, 0, skipped_message}, skipped_run);
-                            for (const auto& ready_job : newly_skipped.ready) {
-                                push_job_locked(ready_job.job, ready_job.category,
-                                                ready_job.user_priority);
-                                ++pushed_jobs;
-                            }
-                        }
-                    }
+                    recover_from_callback_error(job->id(), message, *run, messages, pushed_jobs);
                 }
             }
             for (const std::string& message : messages) {

@@ -19,6 +19,12 @@
 #include "scheduler.hpp"
 #include "stub_job.hpp"
 
+struct SchedulerTestAccess {
+    static void set_handle_finished_hook(Scheduler& scheduler, std::function<void()> hook) {
+        scheduler.handle_finished_hook_ = std::move(hook);
+    }
+};
+
 namespace {
 class ThrowingStubJob : public Job {
 public:
@@ -438,6 +444,50 @@ TEST(ThreadPool, ThrowingJobPreservesExceptionMessageInResult) {
     EXPECT_EQ(observed_result.message, "expected test exception");
 }
 
+TEST(ThreadPool, ThrowingCallbackErrorHandlerDoesNotStopWorker) {
+    StubJob first_job("throwing-fallback-job-1", 1);
+    StubJob second_job("throwing-fallback-job-2", 1);
+    std::mutex callback_mutex;
+    std::condition_variable callback_condition;
+    int completion_count = 0;
+    int fallback_count = 0;
+    std::ostringstream error_output;
+    std::streambuf* previous_error_buffer = std::cerr.rdbuf(error_output.rdbuf());
+    {
+        ThreadPool pool(
+            1,
+            [&](const std::string&, const ExecResult&, const JobRun&) -> FinishedJobs {
+                throw std::runtime_error("expected callback exception");
+            },
+            [&](const std::string&, const ExecResult&, const JobRun&) -> FinishedJobs {
+                {
+                    std::lock_guard<std::mutex> lock(callback_mutex);
+                    ++fallback_count;
+                }
+                callback_condition.notify_one();
+                throw std::runtime_error("expected fallback exception");
+            });
+        pool.push_jobs({ReadyJob{&first_job, 1, 1}, ReadyJob{&second_job, 1, 1}});
+
+        std::unique_lock<std::mutex> lock(callback_mutex);
+        EXPECT_TRUE(callback_condition.wait_for(
+            lock, std::chrono::seconds(1), [&fallback_count]() { return fallback_count == 2; }));
+        completion_count = fallback_count;
+    }
+    std::cerr.rdbuf(previous_error_buffer);
+
+    EXPECT_EQ(completion_count, 2);
+    const std::string logged_errors = error_output.str();
+    const std::string fallback_message = "Callback error handler for job throwing-fallback-job-";
+    std::size_t log_count = 0;
+    for (std::size_t position = 0;
+         (position = logged_errors.find(fallback_message, position)) != std::string::npos;
+         position += fallback_message.size()) {
+        ++log_count;
+    }
+    EXPECT_EQ(log_count, 2U);
+}
+
 TEST(Scheduler, CallbackExceptionsDoNotHangWaitOrTerminateWorkerThreads) {
     StubJob first_job("callback-exception-job-1", 1);
     StubJob second_job("callback-exception-job-2", 1);
@@ -495,6 +545,45 @@ TEST(Scheduler, CallbackExceptionsDoNotHangWaitOrTerminateWorkerThreads) {
         ++log_count;
     }
     EXPECT_EQ(log_count, 2U);
+}
+
+TEST(Scheduler, ThrowingFinishedHookFailsJobAndSkipsDependentsWithoutHangingWait) {
+    StubJob failed_by_hook("hook-failure-job", 1);
+    StubJob dependent_job("hook-dependent-job", 1);
+    Scheduler scheduler(2);
+    scheduler.add_job(&failed_by_hook, 1, 1);
+    scheduler.add_job(&dependent_job, 1, 1);
+    scheduler.add_dependency(failed_by_hook.id(), dependent_job.id());
+
+    std::atomic<bool> should_throw{true};
+    SchedulerTestAccess::set_handle_finished_hook(scheduler, [&should_throw]() {
+        if (should_throw.exchange(false)) {
+            throw std::runtime_error("expected scheduler hook exception");
+        }
+    });
+
+    std::mutex wait_mutex;
+    std::condition_variable wait_condition;
+    bool wait_returned = false;
+    scheduler.start();
+    std::thread waiter([&]() {
+        scheduler.wait();
+        {
+            std::lock_guard<std::mutex> lock(wait_mutex);
+            wait_returned = true;
+        }
+        wait_condition.notify_one();
+    });
+
+    {
+        std::unique_lock<std::mutex> lock(wait_mutex);
+        EXPECT_TRUE(wait_condition.wait_for(lock, std::chrono::seconds(2),
+                                            [&wait_returned]() { return wait_returned; }));
+    }
+    waiter.join();
+
+    EXPECT_EQ(scheduler.final_status(failed_by_hook.id()), Job_Status::FAILED);
+    EXPECT_EQ(scheduler.final_status(dependent_job.id()), Job_Status::SKIPPED);
 }
 
 TEST(Scheduler, CyclicGraphIsRejectedBeforeScheduling) {

@@ -2,6 +2,7 @@
 
 #include <chrono>
 #include <cstddef>
+#include <functional>
 #include <latch>
 #include <memory>
 #include <optional>
@@ -26,6 +27,8 @@ struct RunRecord {
 };
 
 class Scheduler {
+    friend struct SchedulerTestAccess;
+
     struct JobEntry {
         Job* job;
         int category;
@@ -34,6 +37,9 @@ class Scheduler {
 
     FinishedJobs handle_finished(const std::string& id, const ExecResult& result,
                                  const JobRun& run) {
+        if (handle_finished_hook_) {
+            handle_finished_hook_();
+        }
         FinishedJobs finished_jobs;
         if (final_statuses_.find(id) != final_statuses_.end()) {
             return finished_jobs;
@@ -111,6 +117,7 @@ class Scheduler {
     std::unordered_map<std::string, Job_Status> final_statuses_;
     std::unordered_map<std::string, std::vector<RunRecord>> history_;
     std::unique_ptr<std::latch> completion_latch_;
+    std::function<void()> handle_finished_hook_;
     bool started_{false};
     bool waited_{false};
     ThreadPool pool_;
