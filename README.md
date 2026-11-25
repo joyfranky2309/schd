@@ -79,6 +79,7 @@ For vcpkg, add `-DCMAKE_TOOLCHAIN_FILE=$HOME/projects/vcpkg/scripts/buildsystems
 ```sh
 ./build/schd run jobs.json
 ./build/schd run jobs.json --workers 4
+./build/schd run jobs.json --verbose
 ./build/schd validate jobs.json
 ```
 
@@ -142,12 +143,15 @@ Optional QuantLib bond pricing example:
         "coupon_rate": 0.05,
         "maturity_years": 5,
         "yield": 0.05,
+        "issue_date": "2023-10-02",
         "settlement_date": "2024-01-02"
       }
     }
   ]
 }
 ```
+
+`issue_date` is optional, must be strictly before `settlement_date`, and defaults to three months before it. QuantLib's evaluation date is process-global, so QuantLib pricing is serialized with a mutex.
 
 ## Benchmark
 
