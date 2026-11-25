@@ -106,3 +106,9 @@ if(SCHD_TSAN)
 endif()
 
 gtest_discover_tests(schd_tests)
+
+if(CMAKE_BUILD_TYPE STREQUAL "Release")
+  add_executable(schd_bench bench/bench_dag.cpp)
+  target_link_libraries(schd_bench PRIVATE schd_core)
+  target_compile_options(schd_bench PRIVATE -Wall -Wextra -Wpedantic)
+endif()
