@@ -157,7 +157,9 @@ Optional QuantLib bond pricing example:
 
 The benchmark uses 1,000 in-process jobs in 20 layers, with 50 jobs per layer and 1–3 dependencies from the previous layer. It uses a fixed seed and five runs per configuration, reporting the median. No-op jobs and 1 ms sleep jobs are both benchmarked.
 
-Measured on the repository machine with `hardware_concurrency: 12` on 2026-11-25.
+Measured on WSL2 with 12 logical processors on 2026-11-25.
+
+No-op rows slow down as worker count grows because each completion takes the scheduler lock, while the jobs themselves take only microseconds. The 1 ms sleep jobs scale close to linearly with worker count because execution time dominates scheduling overhead.
 
 | variant | workers | wall ms | jobs/sec | speedup vs 1 worker | scheduling overhead us/job |
 |---|---:|---:|---:|---:|---:|
