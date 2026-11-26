@@ -1,5 +1,7 @@
 # schd
 
+[![CI](https://github.com/joyfranky2309/schd/actions/workflows/ci.yml/badge.svg)](https://github.com/joyfranky2309/schd/actions/workflows/ci.yml)
+
 `schd` is a C++20 DAG-based scheduler that runs shell and optional pricing jobs through a priority-aware thread pool. It skips failed dependency branches, retries failed jobs, keeps an in-memory attempt history, and optionally persists completed runs to SQLite.
 
 ## System overview
@@ -23,6 +25,22 @@ flowchart LR
 - Priority is determined by category, user priority, and insertion sequence. EOD outranks ADHOC.
 - A scheduler latch synchronizes `wait()` with callback state updates.
 - Attempts are numbered from the existing history for that job plus one.
+
+## Locked design decisions
+
+- **Job and JobRun are separate:** `Job` is reusable; each attempt gets a fresh `JobRun` snapshot.
+- **The DAG owns edges:** jobs do not track their own dependency state.
+- **Priority is deterministic:** category, user priority, and insertion sequence decide queue order.
+- **Scheduler state is protected by one queue mutex:** DAG indegree updates and ready-queue pushes occur under `ThreadPool::queue_mutex_`.
+- **Execution runs outside the queue lock:** workers release the queue lock before `Job::execute()`.
+- **Completion state is callback-owned:** callbacks return ready/skipped work rather than calling public pool methods.
+- **SQLite writes have no scheduler locks:** `HistoryStore` is used only after `Scheduler::wait()` on the CLI main thread.
+
+## AutoSys comparison
+
+- When a job fails, `schd` skips its transitive dependents and records the failed ancestor; independent jobs continue.
+- Every attempt, status, exit code, and message is retained in attempt history.
+- Compared with the incumbent, `schd` lacks file watchers, calendars/cron, agents, alerting, container-native job execution, and stdout/stderr capture.
 
 ## Quick start
 
@@ -165,6 +183,21 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --target schd_bench --parallel
 ./build/schd_bench
 ```
+
+Measured on WSL2 with 12 logical processors on 2026-11-25:
+
+| variant | workers | wall ms | jobs/sec | speedup vs 1 worker | scheduling overhead us/job |
+|---|---:|---:|---:|---:|---:|
+| no-op | 1 | 1.625 | 615364.9 | 1.000 | 1.625 |
+| no-op | 2 | 4.228 | 236544.4 | 0.384 | 4.228 |
+| no-op | 4 | 4.807 | 208014.3 | 0.338 | 4.807 |
+| no-op | 7 | 5.837 | 171333.6 | 0.278 | 5.837 |
+| sleep-1ms | 1 | 1245.356 | 803.0 | 1.000 | - |
+| sleep-1ms | 2 | 626.845 | 1595.3 | 1.987 | - |
+| sleep-1ms | 4 | 306.114 | 3266.8 | 4.068 | - |
+| sleep-1ms | 7 | 169.549 | 5898.0 | 7.345 | - |
+
+No-op jobs are slower with more workers because each microsecond-scale completion contends for the scheduler lock. Sleep jobs scale closer to linearly because execution time dominates lock overhead.
 
 A Docker image packages the CLI and `/bin/sh` for shell jobs:
 
