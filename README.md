@@ -98,6 +98,20 @@ ctest --test-dir build/release-lowmem --output-on-failure --parallel 1
 
 `scripts/check-all.sh` builds and tests all eight configurations sequentially with one build/test job, removes each configuration's build directory afterward, and reports its peak resident memory using `/usr/bin/time -v`.
 
+## Quick start
+
+The SQLite-enabled startup script configures and builds the project, then forwards all arguments to `schd`:
+
+```sh
+./run.sh
+./run.sh validate examples/etl.json
+./run.sh run examples/etl.json --db my.db
+./run.sh history my.db --limit 5
+./run.sh history my.db --job extract --limit 20
+```
+
+With no arguments, `./run.sh` runs `examples/pricing.json`. Set `SCHD_BUILD_DIR` to override the SQLite build directory.
+
 ## Run
 
 ```sh
@@ -110,7 +124,29 @@ ctest --test-dir build/release-lowmem --output-on-failure --parallel 1
 ./build/schd history ./history.db --job extract --limit 20
 ```
 
+Manual SQLite build and run commands:
+
+```sh
+sudo apt-get install -y libsqlite3-dev
+cmake -S . -B build-sqlite \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DSCHD_WITH_SQLITE=ON
+cmake --build build-sqlite --parallel 1
+./build-sqlite/schd run examples/etl.json --db my.db
+./build-sqlite/schd history my.db --limit 5
+```
+
 `--db` opens SQLite history before the run and saves the completed run on the main thread after `wait()` returns. SQLite support is optional; builds without `SCHD_WITH_SQLITE` reject `--db` and `history` with exit code 2.
+
+Manual SQLite build commands are:
+
+```sh
+sudo apt-get install -y libsqlite3-dev
+cmake -S . -B build-sqlite -DCMAKE_BUILD_TYPE=Release -DSCHD_WITH_SQLITE=ON
+cmake --build build-sqlite --parallel 1
+./build-sqlite/schd run examples/etl.json --db my.db
+./build-sqlite/schd history my.db --limit 5
+```
 
 Shell example:
 
