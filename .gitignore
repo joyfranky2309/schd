@@ -1,3 +1,4 @@
 /build*/
 /plan.md
 /.vscode/
+*.db
