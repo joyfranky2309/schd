@@ -5,6 +5,25 @@ on:
   pull_request:
 
 jobs:
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build Docker image
+        run: docker build --build-arg WITH_QUANTLIB=OFF --build-arg WITH_SQLITE=OFF -t schd .
+      - name: Validate ETL example
+        run: docker run --rm -v "$PWD/examples:/jobs:ro" schd validate /jobs/etl.json
+      - name: Run ETL example
+        shell: bash
+        run: |
+          set +e
+          docker run --rm -v "$PWD/examples:/jobs:ro" schd run /jobs/etl.json
+          status=$?
+          if [ "$status" -ne 1 ]; then
+            echo "Expected failing branch exit code 1, got $status" >&2
+            exit 1
+          fi
+
   release:
     runs-on: ubuntu-latest
     steps:
