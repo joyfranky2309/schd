@@ -161,6 +161,41 @@ TEST(Cli, BadDatabasePathReturnsExitTwo) {
     ASSERT_TRUE(WIFEXITED(status));
     EXPECT_EQ(WEXITSTATUS(status), 2);
 }
+
+TEST(Cli, MissingHistoryDatabaseReturnsExitTwoWithoutCreatingIt) {
+    TemporaryFile output("missing-history-output.txt", "");
+    const std::filesystem::path missing_path =
+        std::filesystem::temp_directory_path() /
+        ("schd-missing-history-" + std::to_string(::getpid()) + ".db");
+    std::error_code error;
+    std::filesystem::remove(missing_path, error);
+
+    const pid_t child_pid = ::fork();
+    ASSERT_NE(child_pid, -1);
+    if (child_pid == 0) {
+        const int output_fd = ::open(output.path().c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0600);
+        if (output_fd == -1 || ::dup2(output_fd, STDOUT_FILENO) == -1 ||
+            ::dup2(output_fd, STDERR_FILENO) == -1) {
+            ::_exit(126);
+        }
+        ::close(output_fd);
+        ::execl(SCHD_CLI_PATH, SCHD_CLI_PATH, "history", missing_path.c_str(),
+                static_cast<char*>(nullptr));
+        ::_exit(127);
+    }
+
+    int status = 0;
+    ASSERT_NE(::waitpid(child_pid, &status, 0), -1);
+    ASSERT_TRUE(WIFEXITED(status));
+    EXPECT_EQ(WEXITSTATUS(status), 2);
+    EXPECT_FALSE(std::filesystem::exists(missing_path));
+
+    std::ifstream output_file(output.path());
+    std::ostringstream output_text;
+    output_text << output_file.rdbuf();
+    EXPECT_NE(output_text.str().find("no such database: " + missing_path.string()),
+              std::string::npos);
+}
 #else
 TEST(Cli, SqliteOptionsFailWhenNotBuilt) {
     TemporaryFile input("sqlite-off-input.json",
