@@ -1,6 +1,7 @@
 #include "history_store.hpp"
 
 #include <chrono>
+#include <filesystem>
 #include <iomanip>
 #include <random>
 #include <sstream>
@@ -59,13 +60,29 @@ std::string column_text(sqlite3_stmt* statement, int column) {
 }
 } // namespace
 
-HistoryStore::HistoryStore(const std::string& path) : database_(nullptr) {
-    if (sqlite3_open_v2(path.c_str(), &database_,
-                        SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, nullptr) != SQLITE_OK) {
+HistoryStore::HistoryStore(const std::string& path) : HistoryStore(path, true) {}
+
+HistoryStore HistoryStore::open_readonly(const std::string& path) {
+    return HistoryStore(path, false);
+}
+
+HistoryStore::HistoryStore(const std::string& path, bool create) : database_(nullptr) {
+    if (!create && !std::filesystem::exists(path)) {
+        throw std::runtime_error("no such database: " + path);
+    }
+
+    const int flags = create
+                          ? SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE
+                          : SQLITE_OPEN_READONLY;
+    if (sqlite3_open_v2(path.c_str(), &database_, flags, nullptr) != SQLITE_OK) {
         std::runtime_error error = sqlite_error(database_, "could not open SQLite database");
         sqlite3_close(database_);
         database_ = nullptr;
         throw error;
+    }
+
+    if (!create) {
+        return;
     }
 
     char* message = nullptr;

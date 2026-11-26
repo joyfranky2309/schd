@@ -23,6 +23,7 @@ struct HistoryRow {
 class HistoryStore {
 public:
     explicit HistoryStore(const std::string& path);
+    static HistoryStore open_readonly(const std::string& path);
     ~HistoryStore();
 
     HistoryStore(const HistoryStore&) = delete;
@@ -35,6 +36,7 @@ public:
     std::vector<HistoryRow> history(const std::string* job_id, int limit) const;
 
 private:
+    HistoryStore(const std::string& path, bool create);
     sqlite3* database_;
 };
 

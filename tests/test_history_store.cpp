@@ -72,6 +72,42 @@ TEST(HistoryStore, GeneratedRunIdsDiffer) {
     EXPECT_NE(generate_run_id(), generate_run_id());
 }
 
+TEST(HistoryStore, ReadonlyMissingDatabaseFailsWithoutCreatingFile) {
+    const auto path = temporary_db("missing-readonly");
+    std::error_code error;
+    std::filesystem::remove(path, error);
+
+    try {
+        static_cast<void>(HistoryStore::open_readonly(path.string()));
+        FAIL() << "missing read-only database did not throw";
+    } catch (const std::runtime_error& thrown) {
+        EXPECT_EQ(thrown.what(), std::string("no such database: ") + path.string());
+    }
+
+    EXPECT_FALSE(std::filesystem::exists(path));
+}
+
+TEST(HistoryStore, ReadonlyOpenDoesNotCreateOrModifyDatabase) {
+    const auto path = temporary_db("readonly-existing");
+    std::error_code error;
+    std::filesystem::remove(path, error);
+
+    {
+        HistoryStore creator(path.string());
+        creator.save_run("run-one",
+                         {record("alpha", 1, Job_Status::SUCCESS, 0, "created")});
+    }
+
+    {
+        const HistoryStore store = HistoryStore::open_readonly(path.string());
+        const auto rows = store.history(nullptr, 100);
+        ASSERT_EQ(rows.size(), 1U);
+        EXPECT_EQ(rows[0].run_id, "run-one");
+    }
+
+    std::filesystem::remove(path, error);
+}
+
 TEST(HistoryStore, BadPathThrowsSqliteError) {
     EXPECT_THROW(HistoryStore("/definitely/not/a/directory/history.db"),
                  std::runtime_error);

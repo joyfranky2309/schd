@@ -184,7 +184,7 @@ int execute_cli(int argc, char* argv[]) {
                 throw std::invalid_argument("expected --job ID or --limit N");
             }
         }
-        const HistoryStore store(argv[2]);
+        const HistoryStore store = HistoryStore::open_readonly(argv[2]);
         const std::vector<HistoryRow> rows =
             store.history(job_filter ? &*job_filter : nullptr, limit);
         std::cout << std::left << std::setw(36) << "RUN_ID" << std::setw(24) << "JOB_ID"
