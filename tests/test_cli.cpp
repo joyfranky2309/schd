@@ -137,6 +137,56 @@ TEST(Cli, RunReportsFailureAndSkippedDependentWithExitOne) {
     EXPECT_GE(std::get<2>(rows.at("independent")), 0);
 }
 
+#ifdef SCHD_WITH_SQLITE
+TEST(Cli, BadDatabasePathReturnsExitTwo) {
+    TemporaryFile input("db-input.json",
+                        R"json({"jobs":[{"id":"ok","type":"shell","command":"exit 0","category":"EOD"}]})json");
+    TemporaryFile output("db-output.txt", "");
+
+    const pid_t child_pid = ::fork();
+    ASSERT_NE(child_pid, -1);
+    if (child_pid == 0) {
+        const int output_fd = ::open(output.path().c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0600);
+        if (output_fd == -1 || ::dup2(output_fd, STDOUT_FILENO) == -1) {
+            ::_exit(126);
+        }
+        ::close(output_fd);
+        ::execl(SCHD_CLI_PATH, SCHD_CLI_PATH, "run", input.path().c_str(), "--db",
+                "/definitely/not/a/directory/history.db", static_cast<char*>(nullptr));
+        ::_exit(127);
+    }
+
+    int status = 0;
+    ASSERT_NE(::waitpid(child_pid, &status, 0), -1);
+    ASSERT_TRUE(WIFEXITED(status));
+    EXPECT_EQ(WEXITSTATUS(status), 2);
+}
+#else
+TEST(Cli, SqliteOptionsFailWhenNotBuilt) {
+    TemporaryFile input("sqlite-off-input.json",
+                        R"json({"jobs":[{"id":"ok","type":"shell","command":"exit 0","category":"EOD"}]})json");
+    TemporaryFile output("sqlite-off-output.txt", "");
+
+    const pid_t child_pid = ::fork();
+    ASSERT_NE(child_pid, -1);
+    if (child_pid == 0) {
+        const int output_fd = ::open(output.path().c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0600);
+        if (output_fd == -1 || ::dup2(output_fd, STDOUT_FILENO) == -1) {
+            ::_exit(126);
+        }
+        ::close(output_fd);
+        ::execl(SCHD_CLI_PATH, SCHD_CLI_PATH, "run", input.path().c_str(), "--db", "history.db",
+                static_cast<char*>(nullptr));
+        ::_exit(127);
+    }
+
+    int status = 0;
+    ASSERT_NE(::waitpid(child_pid, &status, 0), -1);
+    ASSERT_TRUE(WIFEXITED(status));
+    EXPECT_EQ(WEXITSTATUS(status), 2);
+}
+#endif
+
 TEST(Cli, VerboseRunPrintsCpuPricingMessage) {
     TemporaryFile input("pricing-input.json",
                         R"json({

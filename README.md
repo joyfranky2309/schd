@@ -61,6 +61,16 @@ ctest --test-dir build-tsan --output-on-failure --repeat until-fail:20
 
 `SCHD_ASAN` and `SCHD_TSAN` are mutually exclusive.
 
+SQLite history is optional:
+
+```sh
+sudo apt-get install -y libsqlite3-dev
+cmake -S . -B build-sqlite \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DSCHD_WITH_SQLITE=ON
+cmake --build build-sqlite --parallel
+```
+
 QuantLib is optional:
 
 ```sh
@@ -95,7 +105,12 @@ ctest --test-dir build/release-lowmem --output-on-failure --parallel 1
 ./build/schd run jobs.json --workers 4
 ./build/schd run jobs.json --verbose
 ./build/schd validate jobs.json
+./build/schd run jobs.json --db ./history.db
+./build/schd history ./history.db
+./build/schd history ./history.db --job extract --limit 20
 ```
+
+`--db` opens SQLite history before the run and saves the completed run on the main thread after `wait()` returns. SQLite support is optional; builds without `SCHD_WITH_SQLITE` reject `--db` and `history` with exit code 2.
 
 Shell example:
 
@@ -186,6 +201,18 @@ No-op rows slow down as worker count grows because each completion takes the sch
 | sleep-1ms | 4 | 306.114 | 3266.8 | 4.068 | - |
 | sleep-1ms | 7 | 169.549 | 5898.0 | 7.345 | - |
 
+## Running in Docker
+
+Build and run the CLI container:
+
+```sh
+docker build --build-arg WITH_QUANTLIB=OFF --build-arg WITH_SQLITE=OFF -t schd .
+docker run --rm -v "$PWD/examples:/jobs:ro" schd validate /jobs/etl.json
+docker run --rm -v "$PWD/examples:/jobs:ro" schd run /jobs/etl.json
+```
+
+The container packages the `schd` executable and its `/bin/sh` job environment. It does not support launching individual jobs as containers.
+
 Run it with:
 
 ```sh
@@ -196,7 +223,8 @@ cmake --build build --target schd_bench --parallel
 
 ## Limitations
 
-- History is in memory only; no persistence is implemented.
+- `schd` is packaged only as a container image; running jobs as containers is not supported.
+- SQLite history is saved only after a run finishes. A crash mid-run loses that run; there is no crash recovery.
 - Retries are immediate; there is no backoff delay.
 - There are no cron or calendar triggers.
 - There is no REST API.
