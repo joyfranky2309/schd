@@ -1,0 +1,16 @@
+{
+  "workers": 1,
+  "jobs": [
+    {
+      "id": "cpu-price",
+      "type": "cpu_pricing",
+      "category": "EOD",
+      "params": {
+        "face_value": 100.0,
+        "coupon_rate": 0.05,
+        "maturity_years": 5,
+        "yield": 0.05
+      }
+    }
+  ]
+}

@@ -1,0 +1,38 @@
+{
+  "workers": 2,
+  "jobs": [
+    {
+      "id": "extract",
+      "type": "shell",
+      "command": "echo extracting && echo records > /tmp/extract.txt",
+      "category": "EOD"
+    },
+    {
+      "id": "transform",
+      "type": "shell",
+      "command": "test -f /tmp/extract.txt && echo transforming",
+      "category": "EOD",
+      "depends_on": ["extract"]
+    },
+    {
+      "id": "load",
+      "type": "shell",
+      "command": "echo loading",
+      "category": "EOD",
+      "depends_on": ["transform"]
+    },
+    {
+      "id": "failing-report",
+      "type": "shell",
+      "command": "echo report failed >&2; exit 1",
+      "category": "EOD"
+    },
+    {
+      "id": "skipped-notification",
+      "type": "shell",
+      "command": "echo should-not-run",
+      "category": "EOD",
+      "depends_on": ["failing-report"]
+    }
+  ]
+}
