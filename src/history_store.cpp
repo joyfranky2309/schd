@@ -81,6 +81,13 @@ HistoryStore::HistoryStore(const std::string& path, bool create) : database_(nul
         throw error;
     }
 
+    if (sqlite3_busy_timeout(database_, 3000) != SQLITE_OK) {
+        std::runtime_error error = sqlite_error(database_, "could not set SQLite busy timeout");
+        sqlite3_close(database_);
+        database_ = nullptr;
+        throw error;
+    }
+
     if (!create) {
         return;
     }
@@ -157,6 +164,7 @@ void HistoryStore::save_run(const std::string& run_id,
     sqlite3_finalize(statement);
     if (sqlite3_exec(database_, "COMMIT", nullptr, nullptr, &message) != SQLITE_OK) {
         std::runtime_error error = sqlite_error(database_, "could not commit history transaction");
+        sqlite3_exec(database_, "ROLLBACK", nullptr, nullptr, nullptr);
         sqlite3_free(message);
         throw error;
     }
