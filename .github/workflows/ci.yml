@@ -37,6 +37,21 @@ jobs:
       - name: Benchmark
         run: ./build/schd_bench
 
+  sqlite:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install SQLite
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libsqlite3-dev
+      - name: Configure
+        run: cmake -S . -B build-sqlite -DCMAKE_BUILD_TYPE=Release -DSCHD_WITH_SQLITE=ON
+      - name: Build
+        run: cmake --build build-sqlite --parallel
+      - name: Test
+        run: ctest --test-dir build-sqlite --output-on-failure
+
   quantlib:
     runs-on: ubuntu-latest
     steps:
